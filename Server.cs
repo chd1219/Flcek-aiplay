@@ -6,7 +6,6 @@ using System.Net.Sockets;
 using System.IO;
 using System.Text;
 
-
 namespace Fleck.aiplay
 {    
     class Server
@@ -40,7 +39,7 @@ namespace Fleck.aiplay
 
                             if (message.IndexOf("queryall") != -1)
                             {
-                               // socket.Send(comm.QueryallFromCloud(message));
+                                socket.Send(comm.QueryallFromCloud(message));
                                 // return;
                                 //Console.WriteLine(comm.QueryallFromCloud(message));
                             }

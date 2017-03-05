@@ -8,6 +8,8 @@ using System.Threading;
 using System.Diagnostics;
 using System.Xml;
 using System.Net;
+using ServiceStack.Redis;
+using RedisStudy;
 
 namespace Fleck.aiplay
 {
@@ -78,6 +80,8 @@ namespace Fleck.aiplay
         Msg currentmsg { get; set; }
         Log log;
         Queue MsgQueue;
+        IRedisClient Redis;
+        HashOperator operators;
 
         public void WriteInfo(string message)
         {
@@ -99,16 +103,28 @@ namespace Fleck.aiplay
             string serverResult = "";
             try
             {
-                string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=querybest&board=" + board;
-                string postData = "";               
-                serverResult = HttpPostConnectToServer(serverUrl, postData);
-                
+                serverResult = getFromRedis("Querybest:" + board);
+                if (serverResult == null)
+                {
+                    string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=querybest&board=" + board;
+                    string postData = "";
+                    serverResult = HttpPostConnectToServer(serverUrl, postData);
+                    setToRedis("Querybest:" + board, serverResult); 
+                }
             }
             catch (System.Exception ex)
             {
                 Console.WriteLine(ex.Message);
             }
             return serverResult;
+        }
+        public string getFromRedis(string key)
+        {
+            return Redis.GetValue(key);             
+        }
+        public void setToRedis(string key,string value)
+        {
+            Redis.SetEntryIfNotExists(key, value);
         }
 
         public string QueryallFromCloud(string message)
@@ -121,10 +137,14 @@ namespace Fleck.aiplay
             string serverResult = "";
             try
             {
-                string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=queryall&board=" + board;
-                string postData = "";
-                
-                serverResult = HttpPostConnectToServer(serverUrl, postData);
+                serverResult = getFromRedis("Queryall:" + board);
+                if (serverResult == null)
+                {                    
+                    string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=queryall&board=" + board;
+                    string postData = "";                
+                    serverResult = HttpPostConnectToServer(serverUrl, postData);
+                    setToRedis("Queryall:"+board, serverResult);                    
+                }
                 serverResult = serverResult.Replace("move:", "");//替换为空
                 serverResult = serverResult.Replace("score:", "");//替换为空
                 serverResult = serverResult.Replace("rank:", "");//替换为空
@@ -233,6 +253,13 @@ namespace Fleck.aiplay
             LoadXml();
             log = new Log();
             MsgQueue = new Queue();
+
+            //获取Redis操作接口
+            Redis = RedisManager.GetClient();
+            //Hash表操作
+            operators = new HashOperator();
+
+            Redis.Password = "jiao19890228";
 
             OnReceive();
             OnDeal();
