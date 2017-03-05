@@ -40,7 +40,7 @@ namespace Fleck.aiplay
                             if (message.IndexOf("queryall") != -1)
                             {
                                 socket.Send(comm.QueryallFromCloud(message));
-                                // return;
+                                return;
                                 //Console.WriteLine(comm.QueryallFromCloud(message));
                             }
 
@@ -52,20 +52,31 @@ namespace Fleck.aiplay
                                     );
                                 socket.Send("There are " + allSockets.Count + " clients online.");
                             }
-
                             if (message == "count")
                             {
                                 socket.Send("There are " + allSockets.Count + " clients online.");
                             }   
-
+                            if (message == "depth")
+                            {
+                                 socket.Send(comm.getDepth());                               
+                            }
+                            if (message == "cloudapi")
+                            {
+                                if (comm.getSupportCloudApi())   socket.Send("true");
+                                else socket.Send("false");                              
+                            }
+                            if (message == "reload")
+                            {
+                                comm.ReloadXml();
+                            } 
                             //过滤命令
                             if (message.IndexOf("position") == -1)
                             {
                                // socket.Send(message);
                                 Console.WriteLine(message);
                                 return;
-                            }                           
-
+                            }
+                                 
                             Msg msg = new Msg();
                             msg.connection = socket;
                             msg.message = message;

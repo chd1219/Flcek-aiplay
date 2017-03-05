@@ -254,16 +254,52 @@ namespace Fleck.aiplay
             log = new Log();
             MsgQueue = new Queue();
 
+            InitRedis();    
+
+            OnReceive();
+            OnDeal();
+
+        }
+
+        public void InitRedis()
+        {
             //获取Redis操作接口
             Redis = RedisManager.GetClient();
             //Hash表操作
             operators = new HashOperator();
 
             Redis.Password = "jiao19890228";
+        }
 
-            OnReceive();
-            OnDeal();
+        public void ReloadXml()
+        {
+            XmlDocument doc = new XmlDocument();
+            doc.Load(".\\config.xml");
+            XmlNode xn = doc.SelectSingleNode("configuration");
+            XmlNodeList xnl = xn.ChildNodes;
+            foreach (XmlNode xn1 in xnl)
+            {
+                XmlElement xe = (XmlElement)xn1;
+                if (xe.GetAttribute("key").ToString() == "Level")
+                {
+                    Setting.level = xe.GetAttribute("value").ToString();
+                }
+                if (xe.GetAttribute("key").ToString() == "CloudAPI")
+                {
+                    Setting.isSupportCloudApi = Convert.ToBoolean(xe.GetAttribute("value"));
+                }
+            }
 
+        }
+
+        public string getDepth()
+        {
+            return Setting.level;
+        }
+
+        public bool getSupportCloudApi()
+        {
+            return Setting.isSupportCloudApi;
         }
 
         public void OnReceive()
