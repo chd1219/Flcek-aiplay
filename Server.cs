@@ -40,27 +40,32 @@ namespace Fleck.aiplay
 
                             if (message.IndexOf("queryall") != -1)
                             {
-                                socket.Send(comm.QueryallFromCloud(message));
-                                return;
+                               // socket.Send(comm.QueryallFromCloud(message));
+                                // return;
                                 //Console.WriteLine(comm.QueryallFromCloud(message));
                             }
 
                             if (message == "list")
                             {
-                               // int no = 1;
-                               // allSockets.ToList().ForEach(
-                               //     s => socket.Send((no++) + ": " + s.ConnectionInfo.ClientIpAddress + ":" + s.ConnectionInfo.ClientPort.ToString())
-                               //     );
+                                int no = 1;
+                                allSockets.ToList().ForEach(
+                                    s => socket.Send((no++) + ": " + s.ConnectionInfo.ClientIpAddress + ":" + s.ConnectionInfo.ClientPort.ToString())
+                                    );
+                                socket.Send("There are " + allSockets.Count + " clients online.");
+                            }
+
+                            if (message == "count")
+                            {
                                 socket.Send("There are " + allSockets.Count + " clients online.");
                             }   
 
                             //过滤命令
                             if (message.IndexOf("position") == -1)
                             {
+                               // socket.Send(message);
+                                Console.WriteLine(message);
                                 return;
-                            }
-  
-                            
+                            }                           
 
                             Msg msg = new Msg();
                             msg.connection = socket;

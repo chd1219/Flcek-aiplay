@@ -22,14 +22,27 @@ namespace Fleck.aiplay
     class Log
     {
         private string LogPath;
-        private StreamWriter log;
+        private string spath = "log";
+        private StreamWriter log;       
         public Log()
-        {
+        {            
+            if (!Directory.Exists(spath))
+            {
+                DirectoryInfo directoryInfo = new DirectoryInfo(spath);
+                directoryInfo.Create();
+            }
+
             LogPath = DateTime.Now.ToLongDateString();
-            log = new StreamWriter(LogPath + Setting.port + ".log", true);
+            log = new StreamWriter(spath + "/" + LogPath + "-" + Setting.port + ".log", true);
         }
         public void WriteInfo(string message)
         {
+            if (LogPath != DateTime.Now.ToLongDateString())
+            {
+                log.Close();
+                LogPath = DateTime.Now.ToLongDateString();
+                log = new StreamWriter(spath + "/" + LogPath + "-" + Setting.port + ".log", true);
+            }
             WriteInfo("{0}", message);
         }
         public void WriteInfo(string format, params object[] obj)
@@ -39,9 +52,9 @@ namespace Fleck.aiplay
                 log.WriteLine(string.Format("[{0}] {1}", System.DateTime.Now, string.Format(format, obj)));
                 log.Flush();
             }
-            catch
+            catch (System.Exception ex)
             {
-                // Nothing to do
+                Console.WriteLine(ex.Message);
             }
         }
     }
@@ -82,11 +95,19 @@ namespace Fleck.aiplay
             if (!Setting.isSupportCloudApi)
             {
                 return null;
-            }
-            string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=querybest&board=" + board;
-            string postData = "";
+            } 
             string serverResult = "";
-            serverResult = HttpPostConnectToServer(serverUrl, postData);
+            try
+            {
+                string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=querybest&board=" + board;
+                string postData = "";               
+                serverResult = HttpPostConnectToServer(serverUrl, postData);
+                
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
             return serverResult;
         }
 
@@ -97,15 +118,24 @@ namespace Fleck.aiplay
             {
                 return null;
             }
-            string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=queryall&board=" + board;
-            string postData = "";
             string serverResult = "";
-            serverResult = HttpPostConnectToServer(serverUrl, postData);
-            serverResult = serverResult.Replace("move:", "");//替换为空
-            serverResult = serverResult.Replace("score:", "");//替换为空
-            serverResult = serverResult.Replace("rank:", "");//替换为空
-            serverResult = serverResult.Replace("note:", "");//替换为空
-            return "Queryall" + serverResult;
+            try
+            {
+                string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=queryall&board=" + board;
+                string postData = "";
+                
+                serverResult = HttpPostConnectToServer(serverUrl, postData);
+                serverResult = serverResult.Replace("move:", "");//替换为空
+                serverResult = serverResult.Replace("score:", "");//替换为空
+                serverResult = serverResult.Replace("rank:", "");//替换为空
+                serverResult = serverResult.Replace("note:", "");//替换为空
+                serverResult = "Queryall" + serverResult;
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return serverResult;
         }
 
         public void DealMessage()
@@ -157,36 +187,43 @@ namespace Fleck.aiplay
 
         void executeCommand(string strFile, string args)
         {
-            Process p = new System.Diagnostics.Process();
-            p.StartInfo = new System.Diagnostics.ProcessStartInfo();
-            p.StartInfo.FileName = strFile;
-            p.StartInfo.Arguments = args;
-            p.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
-            p.StartInfo.RedirectStandardOutput = true;
-            p.StartInfo.RedirectStandardInput = true;
-            p.StartInfo.UseShellExecute = false;
-            p.StartInfo.CreateNoWindow = true;
-            p.Start();
-            StreamReader reader = p.StandardOutput;//截取输出流
-            PipeWriter = p.StandardInput;//截取输入流
-
-            string line = reader.ReadLine();//每次读取一行
-            //Console.WriteLine(line);
-            while (true)
+            try
             {
-                line = reader.ReadLine();
-                if (currentmsg != null && line != null)
-                {
-                    currentmsg.connection.Send(line);
-                    if (line.IndexOf("bestmove") != -1)
-                    {                        
-                        log.WriteInfo(currentmsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentmsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
-                        currentmsg.connection = null;
-                        currentmsg.isreturn = true;
-                    }
+                Process p = new System.Diagnostics.Process();
+                p.StartInfo = new System.Diagnostics.ProcessStartInfo();
+                p.StartInfo.FileName = strFile;
+                p.StartInfo.Arguments = args;
+                p.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                p.StartInfo.RedirectStandardOutput = true;
+                p.StartInfo.RedirectStandardInput = true;
+                p.StartInfo.UseShellExecute = false;
+                p.StartInfo.CreateNoWindow = true;
+                p.Start();
+                StreamReader reader = p.StandardOutput;//截取输出流
+                PipeWriter = p.StandardInput;//截取输入流
 
+                string line = reader.ReadLine();//每次读取一行
+                Console.WriteLine(line);
+                while (true)
+                {
+                    line = reader.ReadLine();
+                    if (currentmsg != null && line != null)
+                    {
+                        currentmsg.connection.Send(line);
+                        if (line.IndexOf("bestmove") != -1)
+                        {
+                            log.WriteInfo(currentmsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentmsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
+                            currentmsg.connection = null;
+                            currentmsg.isreturn = true;
+                        }
+
+                    }
+                  //  Console.WriteLine(line);
                 }
-                //Console.WriteLine(line);
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine(ex.Message);
             }
             //p.WaitForExit();
         }
