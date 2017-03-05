@@ -68,6 +68,10 @@ namespace Fleck.aiplay
                             if (message == "reload")
                             {
                                 comm.ReloadXml();
+                            }
+                            if (message == "resetengine")
+                            {
+                                comm.resetEngine();
                             } 
                             //过滤命令
                             if (message.IndexOf("position") == -1)

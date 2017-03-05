@@ -82,7 +82,8 @@ namespace Fleck.aiplay
         Queue MsgQueue;
         IRedisClient Redis;
         HashOperator operators;
-
+        Process pProcess;
+        Boolean isEngineRun;
         public void WriteInfo(string message)
         {
             log.WriteInfo(message);
@@ -90,6 +91,7 @@ namespace Fleck.aiplay
 
         public void ReceiveMessage()
         {
+            isEngineRun = true;
             executeCommand(Setting.engine, "");
             return;
         }
@@ -164,37 +166,48 @@ namespace Fleck.aiplay
             {
                 try
                 {
-                    if (MsgQueue.Count > 0)
+                    if (PipeWriter != null)
                     {
-                        Msg msg = new Msg();
-                        msg = (Msg)MsgQueue.Dequeue();
-                        currentmsg = msg;
-                        string board = msg.message.Substring(13, msg.message.Length - 9 - 12);
-                        string serverResult = QuerybestFromCloud(board);
+                        if (MsgQueue.Count > 0)
+                        {
+                            try
+                            {
+                                Msg msg = new Msg();
+                                msg = (Msg)MsgQueue.Dequeue();
+                                currentmsg = msg;
+                                string board = msg.message.Substring(13, msg.message.Length - 9 - 12);
+                                string serverResult = QuerybestFromCloud(board);
 
-                        PipeWriter.Write(msg.message + "\r\n");
-                        string move = "";
-                       
-                        if (serverResult != null && serverResult.IndexOf("move:") != -1)
-                        {
-                            //Console.WriteLine(serverResult);
-                            if (board.Length > 61)
-                            {
-                                move = " bookmove " + serverResult.Substring(5, 4);
+                                if (PipeWriter != null)  PipeWriter.Write(msg.message + "\r\n");
+                                string move = "";
+
+                                if (serverResult != null && serverResult.IndexOf("move:") != -1)
+                                {
+                                    //Console.WriteLine(serverResult);
+                                    if (board.Length > 61)
+                                    {
+                                        move = " bookmove " + serverResult.Substring(5, 4);
+                                    }
+                                    else if (board.Length < 51)
+                                    {
+                                        move = " egtbmove " + serverResult.Substring(5, 4);
+                                    }
+                                    //Console.WriteLine(move);
+                                    log.WriteInfo(move);
+                                }
+                                if (PipeWriter != null)  PipeWriter.Write("go depth " + Setting.level + move + "\r\n");
+                                while (!msg.isreturn)
+                                {
+                                    Thread.Sleep(10);
+                                }
                             }
-                            else if (board.Length < 51)
+                            catch (System.Exception ex)
                             {
-                                move = " egtbmove " + serverResult.Substring(5, 4);
-                            }
-                            //Console.WriteLine(move);
-                            log.WriteInfo(move);
-                        }
-                        PipeWriter.Write("go depth " + Setting.level + move + "\r\n");
-                        while (!msg.isreturn)
-                        {
-                            Thread.Sleep(10);
+                                Console.WriteLine(ex.Message);
+                            }                            
                         }
                     }
+                    
                 }
                 catch (System.Exception ex)
                 {
@@ -209,22 +222,22 @@ namespace Fleck.aiplay
         {
             try
             {
-                Process p = new System.Diagnostics.Process();
-                p.StartInfo = new System.Diagnostics.ProcessStartInfo();
-                p.StartInfo.FileName = strFile;
-                p.StartInfo.Arguments = args;
-                p.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
-                p.StartInfo.RedirectStandardOutput = true;
-                p.StartInfo.RedirectStandardInput = true;
-                p.StartInfo.UseShellExecute = false;
-                p.StartInfo.CreateNoWindow = true;
-                p.Start();
-                StreamReader reader = p.StandardOutput;//截取输出流
-                PipeWriter = p.StandardInput;//截取输入流
+                pProcess = new System.Diagnostics.Process();
+                pProcess.StartInfo = new System.Diagnostics.ProcessStartInfo();
+                pProcess.StartInfo.FileName = strFile;
+                pProcess.StartInfo.Arguments = args;
+                pProcess.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                pProcess.StartInfo.RedirectStandardOutput = true;
+                pProcess.StartInfo.RedirectStandardInput = true;
+                pProcess.StartInfo.UseShellExecute = false;
+                pProcess.StartInfo.CreateNoWindow = true;
+                pProcess.Start();
+                StreamReader reader = pProcess.StandardOutput;//截取输出流
+                PipeWriter = pProcess.StandardInput;//截取输入流
 
                 string line = reader.ReadLine();//每次读取一行
                 Console.WriteLine(line);
-                while (true)
+                while (isEngineRun)
                 {
                     line = reader.ReadLine();
                     if (currentmsg != null && line != null)
@@ -257,8 +270,8 @@ namespace Fleck.aiplay
             InitRedis();    
 
             OnReceive();
-            OnDeal();
 
+            OnDeal();
         }
 
         public void InitRedis()
@@ -271,6 +284,18 @@ namespace Fleck.aiplay
             Redis.Password = "jiao19890228";
         }
 
+
+        public void resetEngine()
+        {
+            isEngineRun = false;
+            pProcess.Kill();
+            pProcess.Close();
+            PipeWriter = null;
+            ReloadXml();
+            log.WriteInfo("resetEngine:" + Setting.engine);
+            OnReceive();            
+        }
+
         public void ReloadXml()
         {
             XmlDocument doc = new XmlDocument();
@@ -280,6 +305,10 @@ namespace Fleck.aiplay
             foreach (XmlNode xn1 in xnl)
             {
                 XmlElement xe = (XmlElement)xn1;
+                if (xe.GetAttribute("key").ToString() == "Port")
+                {
+                    Setting.port = xe.GetAttribute("value").ToString();
+                }
                 if (xe.GetAttribute("key").ToString() == "Level")
                 {
                     Setting.level = xe.GetAttribute("value").ToString();
@@ -287,6 +316,10 @@ namespace Fleck.aiplay
                 if (xe.GetAttribute("key").ToString() == "CloudAPI")
                 {
                     Setting.isSupportCloudApi = Convert.ToBoolean(xe.GetAttribute("value"));
+                }
+                if (xe.GetAttribute("key").ToString() == "EnginePath")
+                {
+                    Setting.engine = xe.GetAttribute("value").ToString();
                 }
             }
 
