@@ -61,6 +61,19 @@ namespace Fleck.aiplay
         }
     }
 
+    class Role
+    {
+        public IWebSocketConnection connection { get; set; }
+        public List<System.String> message { get; set; }
+        public DateTime currentTime { get; set; }
+        public Role()
+        {
+            connection = null;
+            message = new List<System.String>();
+            currentTime = new System.DateTime(); 
+        }
+    }
+
     class Msg
     {
         public IWebSocketConnection connection { get; set; }
@@ -166,48 +179,37 @@ namespace Fleck.aiplay
             {
                 try
                 {
-                    if (PipeWriter != null)
+                    if (PipeWriter != null && MsgQueue.Count > 0)
                     {
-                        if (MsgQueue.Count > 0)
+                        Msg msg = new Msg();
+                        msg = (Msg)MsgQueue.Dequeue();
+                        currentmsg = msg;
+                        string board = msg.message.Substring(13, msg.message.Length - 9 - 12);
+                        string serverResult = QuerybestFromCloud(board);
+
+                        if (PipeWriter != null)  PipeWriter.Write(msg.message + "\r\n");
+                        string move = "";
+
+                        if (serverResult != null && serverResult.IndexOf("move:") != -1)
                         {
-                            try
+                            //Console.WriteLine(serverResult);
+                            if (board.Length > 61)
                             {
-                                Msg msg = new Msg();
-                                msg = (Msg)MsgQueue.Dequeue();
-                                currentmsg = msg;
-                                string board = msg.message.Substring(13, msg.message.Length - 9 - 12);
-                                string serverResult = QuerybestFromCloud(board);
-
-                                if (PipeWriter != null)  PipeWriter.Write(msg.message + "\r\n");
-                                string move = "";
-
-                                if (serverResult != null && serverResult.IndexOf("move:") != -1)
-                                {
-                                    //Console.WriteLine(serverResult);
-                                    if (board.Length > 61)
-                                    {
-                                        move = " bookmove " + serverResult.Substring(5, 4);
-                                    }
-                                    else if (board.Length < 51)
-                                    {
-                                        move = " egtbmove " + serverResult.Substring(5, 4);
-                                    }
-                                    //Console.WriteLine(move);
-                                    log.WriteInfo(move);
-                                }
-                                if (PipeWriter != null)  PipeWriter.Write("go depth " + Setting.level + move + "\r\n");
-                                while (!msg.isreturn)
-                                {
-                                    Thread.Sleep(10);
-                                }
+                                move = " bookmove " + serverResult.Substring(5, 4);
                             }
-                            catch (System.Exception ex)
+                            else if (board.Length < 51)
                             {
-                                Console.WriteLine(ex.Message);
-                            }                            
+                                move = " egtbmove " + serverResult.Substring(5, 4);
+                            }
+                            //Console.WriteLine(move);
+                            log.WriteInfo(move);
                         }
+                        if (PipeWriter != null)  PipeWriter.Write("go depth " + Setting.level + move + "\r\n");
+                        while (!msg.isreturn)
+                        {
+                            Thread.Sleep(10);
+                        }   
                     }
-                    
                 }
                 catch (System.Exception ex)
                 {
@@ -242,16 +244,30 @@ namespace Fleck.aiplay
                     line = reader.ReadLine();
                     if (currentmsg != null && line != null)
                     {
-                        currentmsg.connection.Send(line);
+                        string[] sArray = line.Split(' '); 
+                        int intDepth = 0;
+                        if (sArray[1] == "depth")
+                            intDepth = Int32.Parse(sArray[2]);
+                        //消息过滤，大于14层的消息才转发
+                        /*info depth 14 seldepth 35 multipv 1 score 19 nodes 243960507 nps 6738309 hashfull 974 tbhits 0 time 36205 
+                         * pv h2e2 h9g7 h0g2 i9h9 i0h0 b9c7 h0h4 h7i7 h4h9 g7h9 c3c4 b7a7 b2c2 c9e7 c2c6 a9b9 b0c2 g6g5 a0a1 h9g7 
+                         */
+                        if (intDepth > 13 && sArray[3] == "seldepth")
+                        {
+                           // Console.WriteLine(line);
+                            currentmsg.connection.Send(line);
+                        } 
+                        
                         if (line.IndexOf("bestmove") != -1)
                         {
+                            currentmsg.connection.Send(line);
                             log.WriteInfo(currentmsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentmsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
                             currentmsg.connection = null;
                             currentmsg.isreturn = true;
                         }
-
                     }
-                  //  Console.WriteLine(line);
+                    
+                  
                 }
             }
             catch (System.Exception ex)
@@ -293,7 +309,7 @@ namespace Fleck.aiplay
             PipeWriter = null;
             ReloadXml();
             log.WriteInfo("resetEngine:" + Setting.engine);
-            OnReceive();            
+            OnReceive();
         }
 
         public void ReloadXml()
@@ -322,7 +338,6 @@ namespace Fleck.aiplay
                     Setting.engine = xe.GetAttribute("value").ToString();
                 }
             }
-
         }
 
         public string getDepth()
@@ -348,7 +363,6 @@ namespace Fleck.aiplay
             DealMeassgaehread.IsBackground = true;
             DealMeassgaehread.Start();
         }
-
 
         public void OnMessage(Msg msg)
         {
