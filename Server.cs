@@ -115,6 +115,10 @@ namespace Fleck.aiplay
                             if (message == "dealspeed")
                             {
                                 socket.Send("The deal speed is " + comm.getDealspeed() + " peer minute.");
+                            }
+                            if (message == "timeout")
+                            {
+                                socket.Send("The thinktimeout is " + comm.getThinktimeout() + " second.");
                             } 
                             if (message == "depth")
                             {
@@ -127,9 +131,9 @@ namespace Fleck.aiplay
                             }
                             if (message == "reload")
                             {
-                                comm.ReloadXml();
+                                comm.LoadXml();
                             }
-                            if (message == "resetengine")
+                            if (message == "reset")
                             {
                                 comm.resetEngine();
                             } 

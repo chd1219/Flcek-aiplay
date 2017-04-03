@@ -20,6 +20,7 @@ namespace Fleck.aiplay
         static public string level { get; set; }
         static public bool isSupportCloudApi { get; set; }
         static public string engine { get; set; }
+        static public int thinktimeout { get; set; }
     }
 
     class Log
@@ -90,8 +91,8 @@ namespace Fleck.aiplay
 
     class Comm
     {
-        StreamWriter PipeWriter { get; set; }
-        Msg currentMsg { get; set; }
+        private static StreamWriter PipeWriter { get; set; }
+        private static Msg currentMsg { get; set; }
         Log log { get; set; }
         Queue MsgQueue;
         IRedisClient Redis;
@@ -99,6 +100,7 @@ namespace Fleck.aiplay
         Process pProcess;
         Boolean isEngineRun;
         private static int nMsgQueuecount { get; set; }
+        private static int timeout { get; set; }
         public void WriteInfo(string message)
         {
             log.WriteInfo(message);
@@ -213,7 +215,11 @@ namespace Fleck.aiplay
                             //Console.WriteLine(move);
                             log.WriteInfo(move);
                         }
-                        if (PipeWriter != null)  PipeWriter.Write("go depth " + Setting.level + move + "\r\n");
+                        if (PipeWriter != null)
+                        {
+                            PipeWriter.Write("go depth " + Setting.level + move + "\r\n");
+                            timeout = 0;
+                        }
                         while (!msg.isreturn)
                         {
                             Thread.Sleep(10);
@@ -299,6 +305,8 @@ namespace Fleck.aiplay
             OnDeal();
 
             OnTime();
+
+            OnTimeDeal();
         }
         private static void OnTimedEvent(object source, ElapsedEventArgs e)
         {
@@ -312,6 +320,25 @@ namespace Fleck.aiplay
             t.Elapsed += new ElapsedEventHandler(OnTimedEvent);
             t.Interval = 60000;
             t.Enabled = true;
+        }
+        private static void OnTimedEventDeal(object source, ElapsedEventArgs e)
+        {
+            if ((timeout++) > Setting.thinktimeout-1)
+            {
+                timeout = 0;
+                if (currentMsg != null && currentMsg.isreturn == false)
+                {
+                    PipeWriter.Write("stop\r\n");
+                }
+            }
+        }
+        public void OnTimeDeal()
+        {
+            System.Timers.Timer t = new System.Timers.Timer();
+            t.Elapsed += new ElapsedEventHandler(OnTimedEventDeal);
+            t.Interval = 1000;
+            t.Enabled = true;
+            timeout = 0;
         }
         public void InitRedis()
         {
@@ -330,44 +357,19 @@ namespace Fleck.aiplay
             pProcess.Kill();
             pProcess.Close();
             PipeWriter = null;
-            ReloadXml();
+            LoadXml();
             log.WriteInfo("resetEngine:" + Setting.engine);
             OnReceive();
-        }
-
-        public void ReloadXml()
-        {
-            XmlDocument doc = new XmlDocument();
-            doc.Load(".\\config.xml");
-            XmlNode xn = doc.SelectSingleNode("configuration");
-            XmlNodeList xnl = xn.ChildNodes;
-            foreach (XmlNode xn1 in xnl)
-            {
-                XmlElement xe = (XmlElement)xn1;
-                if (xe.GetAttribute("key").ToString() == "Port")
-                {
-                    Setting.port = xe.GetAttribute("value").ToString();
-                }
-                if (xe.GetAttribute("key").ToString() == "Level")
-                {
-                    Setting.level = xe.GetAttribute("value").ToString();
-                }
-                if (xe.GetAttribute("key").ToString() == "CloudAPI")
-                {
-                    Setting.isSupportCloudApi = Convert.ToBoolean(xe.GetAttribute("value"));
-                }
-                if (xe.GetAttribute("key").ToString() == "EnginePath")
-                {
-                    Setting.engine = xe.GetAttribute("value").ToString();
-                }
-            }
         }
 
         public string getDepth()
         {
             return Setting.level;
         }
-
+        public string getThinktimeout()
+        {
+            return Setting.thinktimeout.ToString();
+        }
         public bool getSupportCloudApi()
         {
             return Setting.isSupportCloudApi;
@@ -408,6 +410,10 @@ namespace Fleck.aiplay
                 if (xe.GetAttribute("key").ToString() == "Level")
                 {
                     Setting.level = xe.GetAttribute("value").ToString();
+                }
+                if (xe.GetAttribute("key").ToString() == "Thinktimeout")
+                {
+                    Setting.thinktimeout = int.Parse(xe.GetAttribute("value").ToString());
                 }
                 if (xe.GetAttribute("key").ToString() == "CloudAPI")
                 {
@@ -467,5 +473,7 @@ namespace Fleck.aiplay
             }
             return res;
         }
+
+        
     }
 }
