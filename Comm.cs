@@ -10,6 +10,7 @@ using System.Xml;
 using System.Net;
 using ServiceStack.Redis;
 using RedisStudy;
+using System.Timers;
 
 namespace Fleck.aiplay
 {
@@ -90,18 +91,26 @@ namespace Fleck.aiplay
     class Comm
     {
         StreamWriter PipeWriter { get; set; }
-        Msg currentmsg { get; set; }
-        Log log;
+        Msg currentMsg { get; set; }
+        Log log { get; set; }
         Queue MsgQueue;
         IRedisClient Redis;
         HashOperator operators;
         Process pProcess;
         Boolean isEngineRun;
+        private static int nMsgQueuecount { get; set; }
         public void WriteInfo(string message)
         {
             log.WriteInfo(message);
         }
-
+        public int getMsgQueueCount()
+        {
+            return MsgQueue.Count;
+        }
+        public int getDealspeed()
+        {
+            return nMsgQueuecount;
+        }
         public void ReceiveMessage()
         {
             isEngineRun = true;
@@ -183,7 +192,7 @@ namespace Fleck.aiplay
                     {
                         Msg msg = new Msg();
                         msg = (Msg)MsgQueue.Dequeue();
-                        currentmsg = msg;
+                        currentMsg = msg;
                         string board = msg.message.Substring(13, msg.message.Length - 9 - 12);
                         string serverResult = QuerybestFromCloud(board);
 
@@ -208,7 +217,8 @@ namespace Fleck.aiplay
                         while (!msg.isreturn)
                         {
                             Thread.Sleep(10);
-                        }   
+                        }
+                        nMsgQueuecount++;
                     }
                 }
                 catch (System.Exception ex)
@@ -242,7 +252,7 @@ namespace Fleck.aiplay
                 while (isEngineRun)
                 {
                     line = reader.ReadLine();
-                    if (currentmsg != null && line != null)
+                    if (currentMsg != null && line != null)
                     {
                         string[] sArray = line.Split(' '); 
                         int intDepth = 0;
@@ -255,19 +265,17 @@ namespace Fleck.aiplay
                         if (intDepth > 13 && sArray[3] == "seldepth")
                         {
                            // Console.WriteLine(line);
-                            currentmsg.connection.Send(line);
+                            currentMsg.connection.Send(line);
                         } 
                         
                         if (line.IndexOf("bestmove") != -1)
                         {
-                            currentmsg.connection.Send(line);
-                            log.WriteInfo(currentmsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentmsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
-                            currentmsg.connection = null;
-                            currentmsg.isreturn = true;
+                            currentMsg.connection.Send(line);
+                            log.WriteInfo(currentMsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentMsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
+                            currentMsg.connection = null;
+                            currentMsg.isreturn = true;
                         }
-                    }
-                    
-                  
+                    }  
                 }
             }
             catch (System.Exception ex)
@@ -282,14 +290,29 @@ namespace Fleck.aiplay
             LoadXml();
             log = new Log();
             MsgQueue = new Queue();
+            nMsgQueuecount = 0;
 
             InitRedis();    
 
             OnReceive();
 
             OnDeal();
+
+            OnTime();
+        }
+        private static void OnTimedEvent(object source, ElapsedEventArgs e)
+        {
+           // Console.WriteLine(nMsgQueuecount);
+            nMsgQueuecount = 0;
         }
 
+        public void OnTime()
+        {
+            System.Timers.Timer t = new System.Timers.Timer();
+            t.Elapsed += new ElapsedEventHandler(OnTimedEvent);
+            t.Interval = 60000;
+            t.Enabled = true;
+        }
         public void InitRedis()
         {
             //获取Redis操作接口
@@ -366,7 +389,7 @@ namespace Fleck.aiplay
 
         public void OnMessage(Msg msg)
         {
-            MsgQueue.Enqueue(msg);
+            MsgQueue.Enqueue(msg);            
         }
 
         public void LoadXml()

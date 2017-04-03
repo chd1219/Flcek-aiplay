@@ -6,10 +6,13 @@ using System.Net.Sockets;
 using System.IO;
 using System.Text;
 
+
 namespace Fleck.aiplay
 {    
     class Server
     {
+       
+
         static void Main()
         {
             Comm comm = new Comm();
@@ -18,8 +21,10 @@ namespace Fleck.aiplay
             FleckLog.Level = LogLevel.Debug;
             var allSockets = new List<IWebSocketConnection>();
             var allRoles = new List<Role>();
-            var server = new WebSocketServer("ws://0.0.0.0:"+Setting.port);     
+            var server = new WebSocketServer("ws://0.0.0.0:"+Setting.port);
+
             
+
             server.Start(socket =>
                 {
                     socket.OnOpen = () =>
@@ -91,7 +96,10 @@ namespace Fleck.aiplay
                                 socket.Send(comm.QueryallFromCloud(message));
                                 return;                                
                             }
-
+                            if (message == "count")
+                            {
+                                socket.Send("There are " + allSockets.Count + " clients online.");
+                            }  
                             if (message == "list")
                             {
                                 int no = 1;
@@ -100,10 +108,14 @@ namespace Fleck.aiplay
                                     );
                                 socket.Send("There are " + allSockets.Count + " clients online.");
                             }
-                            if (message == "count")
+                            if (message == "msgcount")
                             {
-                                socket.Send("There are " + allSockets.Count + " clients online.");
-                            }   
+                                socket.Send("There are " + comm.getMsgQueueCount() + " messages haven't deal.");
+                            }
+                            if (message == "dealspeed")
+                            {
+                                socket.Send("The deal speed is " + comm.getDealspeed() + " peer minute.");
+                            } 
                             if (message == "depth")
                             {
                                  socket.Send(comm.getDepth());                               
