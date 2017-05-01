@@ -58,7 +58,7 @@ namespace Fleck.aiplay
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.Message);                
             }
         }
     }
@@ -141,6 +141,7 @@ namespace Fleck.aiplay
             catch (System.Exception ex)
             {
                 Console.WriteLine(ex.Message);
+                WriteInfo("[error QuerybestFromCloud]" + ex.Message);
             }
             return serverResult;
         }
@@ -180,6 +181,7 @@ namespace Fleck.aiplay
             catch (System.Exception ex)
             {
                 Console.WriteLine(ex.Message);
+                WriteInfo("[error] QueryallFromCloud" + ex.Message);
             }
             return serverResult;
         }
@@ -213,7 +215,7 @@ namespace Fleck.aiplay
                                 move = " egtbmove " + serverResult.Substring(5, 4);
                             }
                             //Console.WriteLine(move);
-                            log.WriteInfo(move);
+                            WriteInfo(move);
                         }
                         if (PipeWriter != null)
                         {
@@ -230,6 +232,8 @@ namespace Fleck.aiplay
                 catch (System.Exception ex)
                 {
                     Console.WriteLine(ex.Message);
+                    WriteInfo("[error] DealMessage" + ex.Message);
+                    resetEngine();
                 }
 
                 Thread.Sleep(100);
@@ -277,7 +281,7 @@ namespace Fleck.aiplay
                         if (line.IndexOf("bestmove") != -1)
                         {
                             currentMsg.connection.Send(line);
-                            log.WriteInfo(currentMsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentMsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
+                            WriteInfo(currentMsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentMsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
                             currentMsg.connection = null;
                             currentMsg.isreturn = true;
                         }
@@ -287,6 +291,7 @@ namespace Fleck.aiplay
             catch (System.Exception ex)
             {
                 Console.WriteLine(ex.Message);
+                WriteInfo("[error] executeCommand " + ex.Message);
             }
             //p.WaitForExit();
         }
@@ -354,11 +359,20 @@ namespace Fleck.aiplay
         public void resetEngine()
         {
             isEngineRun = false;
-            pProcess.Kill();
-            pProcess.Close();
+            try
+            {
+                pProcess.Kill();
+                pProcess.Close();
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                WriteInfo("[error]  resetEngine" + ex.Message);
+            }
+           
             PipeWriter = null;
             LoadXml();
-            log.WriteInfo("resetEngine:" + Setting.engine);
+            WriteInfo("resetEngine:" + Setting.engine);
             OnReceive();
         }
 
@@ -441,11 +455,6 @@ namespace Fleck.aiplay
             request.Timeout = 10000;
             //创建输入流  
             Stream dataStream;
-            //using (var dataStream = request.GetRequestStream())  
-            //{  
-            //    dataStream.Write(dataArray, 0, dataArray.Length);  
-            //    dataStream.Close();  
-            //}  
             try
             {
                 dataStream = request.GetRequestStream();
@@ -468,8 +477,7 @@ namespace Fleck.aiplay
             }
             catch (Exception ex)
             {
-                log.WriteInfo(ex.Message);
-                // mylog.WriteInfo("{\"error\":\"connectToServer\",\"error_description\":\"" + ex.Message + "\"}");//连接服务器失败  
+                WriteInfo("[error] HttpPostConnectToServer" + ex.Message); 
             }
             return res;
         }
