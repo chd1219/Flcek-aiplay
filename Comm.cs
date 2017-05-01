@@ -264,11 +264,11 @@ namespace Fleck.aiplay
                         int intDepth = 0;
                         if (sArray[1] == "depth")
                             intDepth = Int32.Parse(sArray[2]);
-                        //消息过滤，大于14层的消息才转发
+                        //消息过滤，大于1层的消息才转发
                         /*info depth 14 seldepth 35 multipv 1 score 19 nodes 243960507 nps 6738309 hashfull 974 tbhits 0 time 36205 
                          * pv h2e2 h9g7 h0g2 i9h9 i0h0 b9c7 h0h4 h7i7 h4h9 g7h9 c3c4 b7a7 b2c2 c9e7 c2c6 a9b9 b0c2 g6g5 a0a1 h9g7 
                          */
-                        if (intDepth > 13 && sArray[3] == "seldepth")
+                        if (intDepth > 1 && sArray[3] == "seldepth")
                         {
                            // Console.WriteLine(line);
                             currentMsg.connection.Send(line);
