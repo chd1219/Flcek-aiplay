@@ -72,7 +72,7 @@ namespace Fleck.aiplay
         {
             connection = null;
             message = new List<System.String>();
-            currentTime = new System.DateTime(); 
+            currentTime = System.DateTime.Now;  
         }
     }
 
@@ -81,11 +81,13 @@ namespace Fleck.aiplay
         public IWebSocketConnection connection { get; set; }
         public string message { get; set; }
         public bool isreturn { get; set; }
+        public DateTime currentTime { get; set; }
         public Msg()
         {
             connection = null;
             message = "";
             isreturn = false;
+            currentTime = System.DateTime.Now; 
         }
     }
 
@@ -93,6 +95,7 @@ namespace Fleck.aiplay
     {
         private static StreamWriter PipeWriter { get; set; }
         private static Msg currentMsg { get; set; }
+        private static bool isLock { get; set; }
         Log log { get; set; }
         Queue MsgQueue;
         IRedisClient Redis;
@@ -181,7 +184,7 @@ namespace Fleck.aiplay
             catch (System.Exception ex)
             {
                 Console.WriteLine(ex.Message);
-                WriteInfo("[error] QueryallFromCloud" + ex.Message);
+                WriteInfo("[error QueryallFromCloud]" + ex.Message);
             }
             return serverResult;
         }
@@ -192,10 +195,12 @@ namespace Fleck.aiplay
             {
                 try
                 {
-                    if (PipeWriter != null && MsgQueue.Count > 0)
+                    if (PipeWriter != null && MsgQueue.Count > 0 && isLock == false)
                     {
+                        isLock = true;
+
                         Msg msg = new Msg();
-                        msg = (Msg)MsgQueue.Dequeue();
+                        msg = (Msg)MsgQueue.Peek();
                         currentMsg = msg;
                         string board = msg.message.Substring(13, msg.message.Length - 9 - 12);
                         string serverResult = QuerybestFromCloud(board);
@@ -222,11 +227,9 @@ namespace Fleck.aiplay
                             PipeWriter.Write("go depth " + Setting.level + move + "\r\n");
                             timeout = 0;
                         }
-                        while (!msg.isreturn)
-                        {
-                            Thread.Sleep(10);
-                        }
-                        nMsgQueuecount++;
+
+                        Thread.Sleep(10);
+                        
                     }
                 }
                 catch (System.Exception ex)
@@ -284,6 +287,10 @@ namespace Fleck.aiplay
                             WriteInfo(currentMsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentMsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
                             currentMsg.connection = null;
                             currentMsg.isreturn = true;
+                            //返回结果后删除消息
+                            MsgQueue.Dequeue();
+                            nMsgQueuecount++;
+                            isLock = false;
                         }
                     }  
                 }
@@ -302,6 +309,7 @@ namespace Fleck.aiplay
             log = new Log();
             MsgQueue = new Queue();
             nMsgQueuecount = 0;
+            isLock = false;
 
             InitRedis();    
 
@@ -326,6 +334,7 @@ namespace Fleck.aiplay
             t.Interval = 60000;
             t.Enabled = true;
         }
+
         private static void OnTimedEventDeal(object source, ElapsedEventArgs e)
         {
             if ((timeout++) > Setting.thinktimeout-1)
@@ -374,6 +383,7 @@ namespace Fleck.aiplay
             LoadXml();
             WriteInfo("resetEngine:" + Setting.engine);
             OnReceive();
+            isLock = false;
         }
 
         public string getDepth()
@@ -405,7 +415,15 @@ namespace Fleck.aiplay
 
         public void OnMessage(Msg msg)
         {
-            MsgQueue.Enqueue(msg);            
+            MsgQueue.Enqueue(msg);  
+            //30秒未处理则重启引擎
+            DateTime tt = System.DateTime.Now;  
+            Msg firstMsg = (Msg)MsgQueue.Peek();
+            TimeSpan span = tt.Subtract(firstMsg.currentTime);
+            if (span.Seconds > 30)
+            {
+                resetEngine();
+            }
         }
 
         public void LoadXml()
