@@ -27,9 +27,9 @@ namespace Fleck.aiplay
     {
         private string LogPath;
         private string spath = "log";
-        private StreamWriter log;       
+        private StreamWriter log;
         public Log()
-        {            
+        {
             if (!Directory.Exists(spath))
             {
                 DirectoryInfo directoryInfo = new DirectoryInfo(spath);
@@ -58,7 +58,7 @@ namespace Fleck.aiplay
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);                
+                Console.WriteLine(ex.Message);
             }
         }
     }
@@ -72,7 +72,7 @@ namespace Fleck.aiplay
         {
             connection = null;
             message = new List<System.String>();
-            currentTime = new System.DateTime(); 
+            currentTime = System.DateTime.Now;
         }
     }
 
@@ -81,11 +81,13 @@ namespace Fleck.aiplay
         public IWebSocketConnection connection { get; set; }
         public string message { get; set; }
         public bool isreturn { get; set; }
+        public DateTime currentTime { get; set; }
         public Msg()
         {
             connection = null;
             message = "";
             isreturn = false;
+            currentTime = System.DateTime.Now;
         }
     }
 
@@ -93,6 +95,7 @@ namespace Fleck.aiplay
     {
         private static StreamWriter PipeWriter { get; set; }
         private static Msg currentMsg { get; set; }
+        private static bool isLock { get; set; }
         Log log { get; set; }
         Queue MsgQueue;
         IRedisClient Redis;
@@ -125,7 +128,7 @@ namespace Fleck.aiplay
             if (!Setting.isSupportCloudApi)
             {
                 return null;
-            } 
+            }
             string serverResult = "";
             try
             {
@@ -135,7 +138,7 @@ namespace Fleck.aiplay
                     string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=querybest&board=" + board;
                     string postData = "";
                     serverResult = HttpPostConnectToServer(serverUrl, postData);
-                    setToRedis("Querybest:" + board, serverResult); 
+                    setToRedis("Querybest:" + board, serverResult);
                 }
             }
             catch (System.Exception ex)
@@ -147,13 +150,24 @@ namespace Fleck.aiplay
         }
         public string getFromRedis(string key)
         {
-            return Redis.GetValue(key);             
+            return Redis.GetValue(key);
         }
-        public void setToRedis(string key,string value)
+        public void setToRedis(string key, string value)
         {
             Redis.SetEntryIfNotExists(key, value);
         }
-
+        public List<string> GetAllItemsFromList(string listId)
+        {
+            return Redis.GetAllItemsFromList(listId);
+        }
+        public string GetItemFromList(string listId, int listIndex)
+        {
+            return Redis.GetItemFromList(listId, listIndex);
+        }
+        public void AddItemToList(string listId, string value)
+        {
+            Redis.AddItemToList(listId, value);
+        }
         public string QueryallFromCloud(string message)
         {
             string board = message.Substring(9, message.Length - 9);
@@ -166,11 +180,11 @@ namespace Fleck.aiplay
             {
                 serverResult = getFromRedis("Queryall:" + board);
                 if (serverResult == null)
-                {                    
+                {
                     string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=queryall&board=" + board;
-                    string postData = "";                
+                    string postData = "";
                     serverResult = HttpPostConnectToServer(serverUrl, postData);
-                    setToRedis("Queryall:"+board, serverResult);                    
+                    setToRedis("Queryall:" + board, serverResult);
                 }
                 serverResult = serverResult.Replace("move:", "");//替换为空
                 serverResult = serverResult.Replace("score:", "");//替换为空
@@ -181,7 +195,7 @@ namespace Fleck.aiplay
             catch (System.Exception ex)
             {
                 Console.WriteLine(ex.Message);
-                WriteInfo("[error] QueryallFromCloud" + ex.Message);
+                WriteInfo("[error QueryallFromCloud]" + ex.Message);
             }
             return serverResult;
         }
@@ -192,15 +206,38 @@ namespace Fleck.aiplay
             {
                 try
                 {
-                    if (PipeWriter != null && MsgQueue.Count > 0)
+                    if (PipeWriter != null && MsgQueue.Count > 0 && isLock == false)
                     {
+                        isLock = true;
+
                         Msg msg = new Msg();
-                        msg = (Msg)MsgQueue.Dequeue();
-                        currentMsg = msg;
+                        msg = (Msg)MsgQueue.Peek();
+                        List<string> list = GetAllItemsFromList(msg.message);
+                        if (list.Count >= Int32.Parse(Setting.level))
+                        {
+                            for (int i = 0; i < Int32.Parse(Setting.level);i++ )
+                            {
+                                msg.connection.Send(GetItemFromList(msg.message,i));
+                                Thread.Sleep(200);
+                            }
+                        }
+                        else
+                        {
+                            currentMsg = msg;
+                            if (PipeWriter != null)
+                            {
+                                PipeWriter.Write(msg.message + "\r\n");
+                                PipeWriter.Write("go depth " + Setting.level + "\r\n");
+                                timeout = 0;
+                            }
+                        }
+                       
+                        Thread.Sleep(10);
+                        /*
                         string board = msg.message.Substring(13, msg.message.Length - 9 - 12);
                         string serverResult = QuerybestFromCloud(board);
 
-                        if (PipeWriter != null)  PipeWriter.Write(msg.message + "\r\n");
+                        if (PipeWriter != null) PipeWriter.Write(msg.message + "\r\n");
                         string move = "";
 
                         if (serverResult != null && serverResult.IndexOf("move:") != -1)
@@ -222,11 +259,9 @@ namespace Fleck.aiplay
                             PipeWriter.Write("go depth " + Setting.level + move + "\r\n");
                             timeout = 0;
                         }
-                        while (!msg.isreturn)
-                        {
-                            Thread.Sleep(10);
-                        }
-                        nMsgQueuecount++;
+
+                        Thread.Sleep(10);
+                        */
                     }
                 }
                 catch (System.Exception ex)
@@ -264,7 +299,7 @@ namespace Fleck.aiplay
                     line = reader.ReadLine();
                     if (currentMsg != null && line != null)
                     {
-                        string[] sArray = line.Split(' '); 
+                        string[] sArray = line.Split(' ');
                         int intDepth = 0;
                         if (sArray[1] == "depth")
                             intDepth = Int32.Parse(sArray[2]);
@@ -272,20 +307,30 @@ namespace Fleck.aiplay
                         /*info depth 14 seldepth 35 multipv 1 score 19 nodes 243960507 nps 6738309 hashfull 974 tbhits 0 time 36205 
                          * pv h2e2 h9g7 h0g2 i9h9 i0h0 b9c7 h0h4 h7i7 h4h9 g7h9 c3c4 b7a7 b2c2 c9e7 c2c6 a9b9 b0c2 g6g5 a0a1 h9g7 
                          */
-                        if (intDepth > 1 && sArray[3] == "seldepth")
+                        if (intDepth > 0 && sArray[3] == "seldepth")
                         {
-                           // Console.WriteLine(line);
+                            // Console.WriteLine(line);
                             currentMsg.connection.Send(line);
-                        } 
+                            List<string> list = GetAllItemsFromList(currentMsg.message);
+                            if (list.Count < intDepth)
+                            {
+                                AddItemToList(currentMsg.message, line);
+                            }
                         
+                        }
+
                         if (line.IndexOf("bestmove") != -1)
                         {
                             currentMsg.connection.Send(line);
                             WriteInfo(currentMsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentMsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
                             currentMsg.connection = null;
                             currentMsg.isreturn = true;
+                            //返回结果后删除消息
+                            MsgQueue.Dequeue();
+                            nMsgQueuecount++;
+                            isLock = false;
                         }
-                    }  
+                    }
                 }
             }
             catch (System.Exception ex)
@@ -302,8 +347,9 @@ namespace Fleck.aiplay
             log = new Log();
             MsgQueue = new Queue();
             nMsgQueuecount = 0;
+            isLock = false;
 
-            InitRedis();    
+            InitRedis();
 
             OnReceive();
 
@@ -315,7 +361,7 @@ namespace Fleck.aiplay
         }
         private static void OnTimedEvent(object source, ElapsedEventArgs e)
         {
-           // Console.WriteLine(nMsgQueuecount);
+            // Console.WriteLine(nMsgQueuecount);
             nMsgQueuecount = 0;
         }
 
@@ -326,9 +372,10 @@ namespace Fleck.aiplay
             t.Interval = 60000;
             t.Enabled = true;
         }
+
         private static void OnTimedEventDeal(object source, ElapsedEventArgs e)
         {
-            if ((timeout++) > Setting.thinktimeout-1)
+            if ((timeout++) > Setting.thinktimeout - 1)
             {
                 timeout = 0;
                 if (currentMsg != null && currentMsg.isreturn == false)
@@ -369,11 +416,12 @@ namespace Fleck.aiplay
                 Console.WriteLine(ex.Message);
                 WriteInfo("[error]  resetEngine" + ex.Message);
             }
-           
+
             PipeWriter = null;
             LoadXml();
             WriteInfo("resetEngine:" + Setting.engine);
             OnReceive();
+            isLock = false;
         }
 
         public string getDepth()
@@ -396,7 +444,7 @@ namespace Fleck.aiplay
             receiveDataThread.Start();
         }
 
-        public void OnDeal() 
+        public void OnDeal()
         {
             Thread DealMeassgaehread = new Thread(new ThreadStart(DealMessage));
             DealMeassgaehread.IsBackground = true;
@@ -405,7 +453,16 @@ namespace Fleck.aiplay
 
         public void OnMessage(Msg msg)
         {
-            MsgQueue.Enqueue(msg);            
+            MsgQueue.Enqueue(msg);
+            //30秒未处理则重启引擎
+            DateTime tt = System.DateTime.Now;
+            Msg firstMsg = (Msg)MsgQueue.Peek();
+            TimeSpan span = tt.Subtract(firstMsg.currentTime);
+            if (span.Seconds > 20)
+            {
+                MsgQueue.Dequeue();
+                resetEngine();
+            }
         }
 
         public void LoadXml()
@@ -477,11 +534,11 @@ namespace Fleck.aiplay
             }
             catch (Exception ex)
             {
-                WriteInfo("[error] HttpPostConnectToServer" + ex.Message); 
+                WriteInfo("[error] HttpPostConnectToServer" + ex.Message);
             }
             return res;
         }
 
-        
+
     }
 }
