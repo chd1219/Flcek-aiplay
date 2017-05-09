@@ -88,7 +88,7 @@ namespace Fleck.aiplay
                             var role = allRoles[index];
                             role.message.Add(DateTime.Now.ToString()+" "+message);
                             
-                            comm.WriteInfo(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " " + message);        
+                            //comm.WriteInfo(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " " + message);        
 
                             if (message.IndexOf("queryall") != -1)
                             {

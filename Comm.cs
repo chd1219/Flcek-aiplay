@@ -215,17 +215,28 @@ namespace Fleck.aiplay
                         List<string> list = GetAllItemsFromList(msg.message);
                         if (list.Count >= Int32.Parse(Setting.level))
                         {
+                            WriteInfo(msg.message);
+                            WriteInfo("getItemFromList");
+                            Console.WriteLine("getFromList");
+                            string strmsg;
                             for (int i = 0; i < Int32.Parse(Setting.level);i++ )
                             {
-                                msg.connection.Send(GetItemFromList(msg.message,i));
-                                Thread.Sleep(200);
+                                strmsg = GetItemFromList(msg.message, i);
+                                msg.connection.Send(strmsg);
+                                WriteInfo(strmsg);
+                                
                             }
+                            MsgQueue.Dequeue();
+                            isLock = false;
                         }
                         else
                         {
                             currentMsg = msg;
                             if (PipeWriter != null)
                             {
+                                WriteInfo(msg.message);
+                                WriteInfo("getFromEngineer");
+                                Console.WriteLine("gtFormEngineer");
                                 PipeWriter.Write(msg.message + "\r\n");
                                 PipeWriter.Write("go depth " + Setting.level + "\r\n");
                                 timeout = 0;
@@ -309,18 +320,21 @@ namespace Fleck.aiplay
                          */
                         if (intDepth > 0 && sArray[3] == "seldepth")
                         {
-                            // Console.WriteLine(line);
+                            Console.WriteLine(line);
                             currentMsg.connection.Send(line);
                             List<string> list = GetAllItemsFromList(currentMsg.message);
                             if (list.Count < intDepth)
                             {
+                                Console.WriteLine("depth " + intDepth);
                                 AddItemToList(currentMsg.message, line);
+                                WriteInfo(line);
                             }
-                        
+
                         }
 
                         if (line.IndexOf("bestmove") != -1)
                         {
+                            Console.WriteLine(line);
                             currentMsg.connection.Send(line);
                             WriteInfo(currentMsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentMsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
                             currentMsg.connection = null;
