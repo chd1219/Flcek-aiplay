@@ -150,23 +150,39 @@ namespace Fleck.aiplay
         }
         public string getFromRedis(string key)
         {
-            return Redis.GetValue(key);
+            lock (Redis)
+            {
+                return Redis.GetValue(key);
+            }
+            
         }
         public void setToRedis(string key, string value)
         {
-            Redis.SetEntryIfNotExists(key, value);
+            lock (Redis)
+            {
+                Redis.SetEntryIfNotExists(key, value);
+            }
         }
         public List<string> GetAllItemsFromList(string listId)
         {
-            return Redis.GetAllItemsFromList(listId);
+            lock (Redis)
+            {
+                return Redis.GetAllItemsFromList(listId);
+            }
         }
         public string GetItemFromList(string listId, int listIndex)
         {
-            return Redis.GetItemFromList(listId, listIndex);
+            lock (Redis)
+            {
+                return Redis.GetItemFromList(listId, listIndex);
+            }
         }
         public void AddItemToList(string listId, string value)
         {
-            Redis.AddItemToList(listId, value);
+            lock (Redis)
+            {
+                Redis.AddItemToList(listId, value);
+            }
         }
         public string QueryallFromCloud(string message)
         {
@@ -221,7 +237,7 @@ namespace Fleck.aiplay
                             string strmsg;
                             for (int i = 0; i < Int32.Parse(Setting.level);i++ )
                             {
-                                strmsg = GetItemFromList(msg.message, i);
+                                strmsg = list[i];
                                 msg.connection.Send(strmsg);
                                 WriteInfo(strmsg);
                                 
@@ -305,13 +321,13 @@ namespace Fleck.aiplay
 
                 string line = reader.ReadLine();//每次读取一行
                 Console.WriteLine(line);
+                int intDepth = 0;
                 while (isEngineRun)
                 {
                     line = reader.ReadLine();
                     if (currentMsg != null && line != null)
                     {
-                        string[] sArray = line.Split(' ');
-                        int intDepth = 0;
+                        string[] sArray = line.Split(' ');                        
                         if (sArray[1] == "depth")
                             intDepth = Int32.Parse(sArray[2]);
                         //消息过滤，大于1层的消息才转发
@@ -320,12 +336,12 @@ namespace Fleck.aiplay
                          */
                         if (intDepth > 0 && sArray[3] == "seldepth")
                         {
-                            Console.WriteLine(line);
+                            //Console.WriteLine(line);
+                           
                             currentMsg.connection.Send(line);
                             List<string> list = GetAllItemsFromList(currentMsg.message);
                             if (list.Count < intDepth)
-                            {
-                                Console.WriteLine("depth " + intDepth);
+                            {                               
                                 AddItemToList(currentMsg.message, line);
                                 WriteInfo(line);
                             }
@@ -333,7 +349,8 @@ namespace Fleck.aiplay
                         }
 
                         if (line.IndexOf("bestmove") != -1)
-                        {
+                        { 
+                            Console.WriteLine("depth " + intDepth);
                             Console.WriteLine(line);
                             currentMsg.connection.Send(line);
                             WriteInfo(currentMsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentMsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
@@ -344,6 +361,7 @@ namespace Fleck.aiplay
                             nMsgQueuecount++;
                             isLock = false;
                         }
+                        Thread.Sleep(10);
                     }
                 }
             }
