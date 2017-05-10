@@ -96,6 +96,10 @@ namespace Fleck.aiplay
                                 socket.Send(comm.QueryallFromCloud(message));
                                 return;                                
                             }
+                            if (message == "HeartBeat")
+                            {
+                                return;
+                            }  
                             if (message == "count")
                             {
                                 socket.Send("There are " + allSockets.Count + " clients online.");
