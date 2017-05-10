@@ -143,14 +143,29 @@ namespace Fleck.aiplay
                                // socket.Send(message);
                                 Console.WriteLine(message);
                                 return;
+                            }                            
+                            
+                            List<string> list = comm.GetAllItemsFromList(message);
+                            if (list.Count >= Int32.Parse(Setting.level))
+                            {
+                                comm.WriteInfo(message);
+                                comm.WriteInfo("getItemFromList");
+                                Console.WriteLine("getFromList");
+                                string strmsg;
+                                for (int i = 0; i < Int32.Parse(Setting.level); i++)
+                                {
+                                    strmsg = list[i];
+                                    socket.Send(strmsg);
+                                    comm.WriteInfo(strmsg);
+
+                                }    
                             }
-                                 
+
                             Msg msg = new Msg();
                             msg.connection = socket;
                             msg.message = message;
-
                             comm.OnMessage(msg);
-
+                            Console.WriteLine("There are " + comm.getMsgQueueCount() + " messages haven't deal.");
                             return;
                         };
                 });

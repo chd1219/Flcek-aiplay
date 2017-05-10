@@ -228,37 +228,16 @@ namespace Fleck.aiplay
 
                         Msg msg = new Msg();
                         msg = (Msg)MsgQueue.Peek();
-                        List<string> list = GetAllItemsFromList(msg.message);
-                        if (list.Count >= Int32.Parse(Setting.level))
+                        currentMsg = msg;
+                        if (PipeWriter != null)
                         {
                             WriteInfo(msg.message);
-                            WriteInfo("getItemFromList");
-                            Console.WriteLine("getFromList");
-                            string strmsg;
-                            for (int i = 0; i < Int32.Parse(Setting.level);i++ )
-                            {
-                                strmsg = list[i];
-                                msg.connection.Send(strmsg);
-                                WriteInfo(strmsg);
-                                
-                            }
-                            MsgQueue.Dequeue();
-                            isLock = false;
-                        }
-                        else
-                        {
-                            currentMsg = msg;
-                            if (PipeWriter != null)
-                            {
-                                WriteInfo(msg.message);
-                                WriteInfo("getFromEngineer");
-                                Console.WriteLine("gtFormEngineer");
-                                PipeWriter.Write(msg.message + "\r\n");
-                                PipeWriter.Write("go depth " + Setting.level + "\r\n");
-                                timeout = 0;
-                            }
-                        }
-                       
+                            WriteInfo("getFromEngineer");
+                            Console.WriteLine("getFormEngineer");
+                            PipeWriter.Write(msg.message + "\r\n");
+                            PipeWriter.Write("go depth " + Setting.level + "\r\n");
+                            timeout = 0;
+                        }                       
                         Thread.Sleep(10);
                         /*
                         string board = msg.message.Substring(13, msg.message.Length - 9 - 12);
