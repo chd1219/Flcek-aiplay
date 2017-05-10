@@ -161,8 +161,8 @@ namespace Fleck.aiplay
                                     strmsg = list[i];
                                     socket.Send(strmsg);
                                     comm.WriteInfo(strmsg);
-
-                                }    
+                                }
+                                return;
                             }
 
                             Msg msg = new Msg();
