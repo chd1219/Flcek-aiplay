@@ -138,7 +138,14 @@ namespace Fleck.aiplay
                     string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=querybest&board=" + board;
                     string postData = "";
                     serverResult = HttpPostConnectToServer(serverUrl, postData);
-                    setToRedis("Querybest:" + board, serverResult);
+                    if (serverResult != null)
+                    {
+                        setToRedis("Querybest:" + board, serverResult);
+                    }
+                    else
+                    {
+                        serverResult = "";
+                    }
                 }
             }
             catch (System.Exception ex)
@@ -189,7 +196,7 @@ namespace Fleck.aiplay
             string board = message.Substring(9, message.Length - 9);
             if (!Setting.isSupportCloudApi)
             {
-                return null;
+                return "";
             }
             string serverResult = "";
             try
@@ -200,13 +207,20 @@ namespace Fleck.aiplay
                     string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=queryall&board=" + board;
                     string postData = "";
                     serverResult = HttpPostConnectToServer(serverUrl, postData);
-                    setToRedis("Queryall:" + board, serverResult);
-                }
-                serverResult = serverResult.Replace("move:", "");//替换为空
-                serverResult = serverResult.Replace("score:", "");//替换为空
-                serverResult = serverResult.Replace("rank:", "");//替换为空
-                serverResult = serverResult.Replace("note:", "");//替换为空
-                serverResult = "Queryall" + serverResult;
+                    if (serverResult != null)
+                    {
+                        setToRedis("Queryall:" + board, serverResult); 
+                        serverResult = serverResult.Replace("move:", "");//替换为空
+                        serverResult = serverResult.Replace("score:", "");//替换为空
+                        serverResult = serverResult.Replace("rank:", "");//替换为空
+                        serverResult = serverResult.Replace("note:", "");//替换为空
+                        serverResult = "Queryall" + serverResult;
+                    }
+                    else
+                    {
+                        serverResult = "";
+                    }                    
+                }               
             }
             catch (System.Exception ex)
             {

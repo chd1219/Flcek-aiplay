@@ -93,7 +93,11 @@ namespace Fleck.aiplay
                             if (message.IndexOf("queryall") != -1)
                             {
                                // Console.WriteLine(comm.QueryallFromCloud(message));
-                                socket.Send(comm.QueryallFromCloud(message));
+                                string strquery = comm.QueryallFromCloud(message);
+                                if (strquery != null)
+                                {
+                                    socket.Send(strquery);
+                                }                                
                                 return;                                
                             }
                             if (message == "HeartBeat")
@@ -149,20 +153,30 @@ namespace Fleck.aiplay
                                 return;
                             }                            
                             
-                            List<string> list = comm.GetAllItemsFromList(message);
-                            if (list.Count >= Int32.Parse(Setting.level))
+                            List<string> list = comm.GetAllItemsFromList(message); 
+                            string strmsg;
+                            int nlevel = Int32.Parse(Setting.level);
+                            if (list.Count >= nlevel)
                             {
                                 comm.WriteInfo(message);
                                 comm.WriteInfo("getItemFromList");
                                 Console.WriteLine("getFromList");
-                                string strmsg;
-                                for (int i = 0; i < Int32.Parse(Setting.level); i++)
+
+                                for (int i = 0; i < nlevel; i++)
                                 {
                                     strmsg = list[i];
                                     socket.Send(strmsg);
                                     comm.WriteInfo(strmsg);
                                 }
-                                return;
+                                string[] info = list[nlevel-1].Split(' ');
+                                for (int i = 0; i < info.Length; i++)
+                                {
+                                    if (info[i] == "pv")
+                                    {
+                                        socket.Send("bestmove "+info[i+1]);
+                                        return;
+                                    }
+                                }
                             }
 
                             Msg msg = new Msg();
