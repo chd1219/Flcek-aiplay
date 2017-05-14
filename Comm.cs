@@ -184,6 +184,16 @@ namespace Fleck.aiplay
                 return Redis.GetItemFromList(listId, listIndex);
             }
         }
+        public void CheckItemInList(string listId, int count)
+        {
+            lock (Redis)
+            {
+                for (int i = Redis.GetListCount(listId); i < count; i++)
+                {
+                    Redis.AddItemToList(listId, "");
+                }                
+            }
+        }
         public void SetItemInList(string listId, int listIndex, string value)
         {
             lock (Redis)
@@ -250,6 +260,9 @@ namespace Fleck.aiplay
                             Console.WriteLine("getFormEngineer");
                             PipeWriter.Write(msg.message + "\r\n");
                             PipeWriter.Write("go depth " + Setting.level + "\r\n");
+
+                            CheckItemInList(msg.message, Int32.Parse(Setting.level));
+
                             timeout = 0;
                         }                       
                         Thread.Sleep(10);
@@ -335,7 +348,7 @@ namespace Fleck.aiplay
                            // List<string> list = GetAllItemsFromList(currentMsg.message);
                            // if (list.Count < intDepth)
                             {
-                                SetItemInList(currentMsg.message, intDepth, line);
+                                SetItemInList(currentMsg.message, intDepth-1, line);
                                 WriteInfo(line);
                             }
 
