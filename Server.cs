@@ -165,18 +165,45 @@ namespace Fleck.aiplay
                                 for (int i = 0; i < nlevel; i++)
                                 {
                                     strmsg = list[i];
-                                    socket.Send(strmsg);
-                                    comm.WriteInfo(strmsg);
-                                }
-                                string[] info = list[nlevel-1].Split(' ');
-                                for (int i = 0; i < info.Length; i++)
-                                {
-                                    if (info[i] == "pv")
+                                    if (strmsg.Length > 0)
                                     {
-                                        socket.Send("bestmove "+info[i+1]);
-                                        return;
+                                        socket.Send(strmsg);
+                                        comm.WriteInfo(strmsg);
+                                    }
+
+                                    if (strmsg.Length == 0)
+                                    {
+                                        string info = list[i - 1];
+                                        if (info.Length > 0)
+                                        {
+                                            string[] infoArray = info.Split(' ');
+                                            for (int j = 0; j < info.Length; j++)
+                                            {
+                                                if (infoArray[j] == "pv")
+                                                {
+                                                    socket.Send("bestmove " + info[j + 1]);
+                                                    return;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (i == nlevel-1)
+                                    {
+                                        string[] infoArray = strmsg.Split(' ');
+                                        for (int j = 0; j < strmsg.Length; j++)
+                                        {
+                                            if (infoArray[j] == "pv")
+                                            {
+                                                socket.Send("bestmove " + strmsg[j + 1]);
+                                                return;
+                                            }
+                                        }
+                                        
                                     }
                                 }
+                                
+                               
                             }
 
                             Msg msg = new Msg();
