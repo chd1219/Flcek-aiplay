@@ -184,11 +184,11 @@ namespace Fleck.aiplay
                 return Redis.GetItemFromList(listId, listIndex);
             }
         }
-        public void AddItemToList(string listId, string value)
+        public void SetItemInList(string listId, int listIndex, string value)
         {
             lock (Redis)
             {
-                Redis.AddItemToList(listId, value);
+                Redis.SetItemInList(listId, listIndex, value);
             }
         }
         public string QueryallFromCloud(string message)
@@ -332,10 +332,10 @@ namespace Fleck.aiplay
                             //Console.WriteLine(line);
                            
                             currentMsg.connection.Send(line);
-                            List<string> list = GetAllItemsFromList(currentMsg.message);
-                            if (list.Count < intDepth)
-                            {                               
-                                AddItemToList(currentMsg.message, line);
+                           // List<string> list = GetAllItemsFromList(currentMsg.message);
+                           // if (list.Count < intDepth)
+                            {
+                                SetItemInList(currentMsg.message, intDepth, line);
                                 WriteInfo(line);
                             }
 
