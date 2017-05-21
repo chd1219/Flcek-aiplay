@@ -13,231 +13,77 @@ using RedisStudy;
 using System.Timers;
 
 namespace Fleck.aiplay
-{
-    class Setting
-    {
-        static public string port { get; set; }
-        static public string level { get; set; }
-        static public bool isSupportCloudApi { get; set; }
-        static public string engine { get; set; }
-        static public int thinktimeout { get; set; }
-    }
-
-    class Log
-    {
-        private string LogPath;
-        private string spath = "log";
-        private StreamWriter log;
-        public Log()
-        {
-            if (!Directory.Exists(spath))
-            {
-                DirectoryInfo directoryInfo = new DirectoryInfo(spath);
-                directoryInfo.Create();
-            }
-
-            LogPath = DateTime.Now.ToLongDateString();
-            log = new StreamWriter(spath + "/" + LogPath + "-" + Setting.port + ".log", true);
-        }
-        public void WriteInfo(string message)
-        {
-            if (LogPath != DateTime.Now.ToLongDateString())
-            {
-                log.Close();
-                LogPath = DateTime.Now.ToLongDateString();
-                log = new StreamWriter(spath + "/" + LogPath + "-" + Setting.port + ".log", true);
-            }
-            WriteInfo("{0}", message);
-        }
-        public void WriteInfo(string format, params object[] obj)
-        {
-            try
-            {
-                log.WriteLine(string.Format("[{0}] {1}", System.DateTime.Now, string.Format(format, obj)));
-                log.Flush();
-            }
-            catch (System.Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-        }
-    }
-
-    class Role
-    {
-        public IWebSocketConnection connection { get; set; }
-        public List<System.String> message { get; set; }
-        public DateTime currentTime { get; set; }
-        public Role()
-        {
-            connection = null;
-            message = new List<System.String>();
-            currentTime = System.DateTime.Now;
-        }
-    }
-
-    class Msg
-    {
-        public IWebSocketConnection connection { get; set; }
-        public string message { get; set; }
-        public bool isreturn { get; set; }
-        public DateTime currentTime { get; set; }
-        public Msg()
-        {
-            connection = null;
-            message = "";
-            isreturn = false;
-            currentTime = System.DateTime.Now;
-        }
-    }
-
+{    
     class Comm
     {
         private static StreamWriter PipeWriter { get; set; }
-        private static Msg currentMsg { get; set; }
         private static bool isLock { get; set; }
         Log log { get; set; }
-        Queue MsgQueue;
-        IRedisClient Redis;
-        HashOperator operators;
+        Setting setting;
+        Queue RoleQueue;
+        RedisHelper redis;
         Process pProcess;
         Boolean isEngineRun;
+        User user;
         private static int nMsgQueuecount { get; set; }
-        private static int timeout { get; set; }
+        private static int timeout { get; set; }        
+
         public void WriteInfo(string message)
         {
             log.WriteInfo(message);
         }
+     
         public int getMsgQueueCount()
         {
-            return MsgQueue.Count;
+            return RoleQueue.Count;
         }
+      
         public int getDealspeed()
         {
             return nMsgQueuecount;
         }
-        public void ReceiveMessage()
+
+        public void resetEngine()
         {
-            isEngineRun = true;
-            executeCommand(Setting.engine, "");
-            return;
+            isEngineRun = false;
+            try
+            {
+                pProcess.Kill();
+                pProcess.Close();
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                WriteInfo("[error]  resetEngine" + ex.Message);
+            }
+
+            PipeWriter = null;
+            setting.LoadXml();
+            WriteInfo("resetEngine:" + Setting.engine);
+            OnPipe();
+            isLock = false;
         }
 
-        public string QuerybestFromCloud(string board)
+        public string getDepth()
         {
-            if (!Setting.isSupportCloudApi)
-            {
-                return null;
-            }
-            string serverResult = "";
-            try
-            {
-                serverResult = getFromRedis("Querybest:" + board);
-                if (serverResult == null)
-                {
-                    string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=querybest&board=" + board;
-                    string postData = "";
-                    serverResult = HttpPostConnectToServer(serverUrl, postData);
-                    if (serverResult != null)
-                    {
-                        setToRedis("Querybest:" + board, serverResult);
-                    }
-                    else
-                    {
-                        serverResult = "";
-                    }
-                }
-            }
-            catch (System.Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                WriteInfo("[error QuerybestFromCloud]" + ex.Message);
-            }
-            return serverResult;
+            return Setting.level;
         }
-        public string getFromRedis(string key)
+
+        public string getThinktimeout()
         {
-            lock (Redis)
-            {
-                return Redis.GetValue(key);
-            }
-            
+            return Setting.thinktimeout.ToString();
         }
-        public void setToRedis(string key, string value)
+
+        public bool getSupportCloudApi()
         {
-            lock (Redis)
-            {
-                Redis.SetEntryIfNotExists(key, value);
-            }
-        }
-        public List<string> GetAllItemsFromList(string listId)
+            return Setting.isSupportCloudApi;
+        }  
+       
+        public void PipeThread()
         {
-            lock (Redis)
-            {
-                return Redis.GetAllItemsFromList(listId);
-            }
-        }
-        public string GetItemFromList(string listId, int listIndex)
-        {
-            lock (Redis)
-            {
-                return Redis.GetItemFromList(listId, listIndex);
-            }
-        }
-        public void CheckItemInList(string listId, int count)
-        {
-            lock (Redis)
-            {
-                for (int i = Redis.GetListCount(listId); i < count; i++)
-                {
-                    Redis.AddItemToList(listId, "");
-                }                
-            }
-        }
-        public void SetItemInList(string listId, int listIndex, string value)
-        {
-            lock (Redis)
-            {
-                Redis.SetItemInList(listId, listIndex, value);
-            }
-        }
-        public string QueryallFromCloud(string message)
-        {
-            string board = message.Substring(9, message.Length - 9);
-            if (!Setting.isSupportCloudApi)
-            {
-                return "";
-            }
-            string serverResult = "";
-            try
-            {
-                serverResult = getFromRedis("Queryall:" + board);
-                if (serverResult == null)
-                {
-                    string serverUrl = "http://api.chessdb.cn:81/chessdb.php?action=queryall&board=" + board;
-                    string postData = "";
-                    serverResult = HttpPostConnectToServer(serverUrl, postData);
-                    if (serverResult != null)
-                    {
-                        setToRedis("Queryall:" + board, serverResult); 
-                        serverResult = serverResult.Replace("move:", "");//替换为空
-                        serverResult = serverResult.Replace("score:", "");//替换为空
-                        serverResult = serverResult.Replace("rank:", "");//替换为空
-                        serverResult = serverResult.Replace("note:", "");//替换为空
-                        serverResult = "Queryall" + serverResult;
-                    }
-                    else
-                    {
-                        serverResult = "";
-                    }                    
-                }               
-            }
-            catch (System.Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                WriteInfo("[error QueryallFromCloud]" + ex.Message);
-            }
-            return serverResult;
+            isEngineRun = true;
+            Pipe(Setting.engine, "");
+            return;
         }
 
         public void DealMessage()
@@ -246,13 +92,14 @@ namespace Fleck.aiplay
             {
                 try
                 {
-                    if (PipeWriter != null && MsgQueue.Count > 0 && isLock == false)
+                    if (PipeWriter != null && RoleQueue.Count > 0 && isLock == false)
                     {
                         isLock = true;
 
                         Msg msg = new Msg();
-                        msg = (Msg)MsgQueue.Peek();
-                        currentMsg = msg;
+                        user.currentRole = (Role)RoleQueue.Peek();
+                        msg = user.GetCurrentMsg();
+    
                         if (PipeWriter != null)
                         {
                             WriteInfo(msg.message);
@@ -261,40 +108,11 @@ namespace Fleck.aiplay
                             PipeWriter.Write(msg.message + "\r\n");
                             PipeWriter.Write("go depth " + Setting.level + "\r\n");
 
-                            CheckItemInList(msg.message, Int32.Parse(Setting.level));
+                            redis.CheckItemInList(msg.message, Int32.Parse(Setting.level));
 
                             timeout = 0;
                         }                       
-                        Thread.Sleep(10);
-                        /*
-                        string board = msg.message.Substring(13, msg.message.Length - 9 - 12);
-                        string serverResult = QuerybestFromCloud(board);
-
-                        if (PipeWriter != null) PipeWriter.Write(msg.message + "\r\n");
-                        string move = "";
-
-                        if (serverResult != null && serverResult.IndexOf("move:") != -1)
-                        {
-                            //Console.WriteLine(serverResult);
-                            if (board.Length > 61)
-                            {
-                                move = " bookmove " + serverResult.Substring(5, 4);
-                            }
-                            else if (board.Length < 51)
-                            {
-                                move = " egtbmove " + serverResult.Substring(5, 4);
-                            }
-                            //Console.WriteLine(move);
-                            WriteInfo(move);
-                        }
-                        if (PipeWriter != null)
-                        {
-                            PipeWriter.Write("go depth " + Setting.level + move + "\r\n");
-                            timeout = 0;
-                        }
-
-                        Thread.Sleep(10);
-                        */
+                        Thread.Sleep(10);                        
                     }
                 }
                 catch (System.Exception ex)
@@ -308,7 +126,7 @@ namespace Fleck.aiplay
             }
         }
 
-        void executeCommand(string strFile, string args)
+        void Pipe(string strFile, string args)
         {
             try
             {
@@ -331,7 +149,7 @@ namespace Fleck.aiplay
                 while (isEngineRun)
                 {
                     line = reader.ReadLine();
-                    if (currentMsg != null && line != null)
+                    if (user.currentRole != null && line != null)
                     {
                         string[] sArray = line.Split(' ');                        
                         if (sArray[1] == "depth")
@@ -342,28 +160,26 @@ namespace Fleck.aiplay
                          */
                         if (intDepth > 0 && sArray[3] == "seldepth")
                         {
-                            //Console.WriteLine(line);
-                           
-                            currentMsg.connection.Send(line);
+                            //Console.WriteLine(line);                           
+                            user.Send(line);
                            // List<string> list = GetAllItemsFromList(currentMsg.message);
                            // if (list.Count < intDepth)
                             {
-                                SetItemInList(currentMsg.message, intDepth-1, line);
+                                redis.SetItemInList(user.GetCurrentMsg().message, intDepth - 1, line);
                                 WriteInfo(line);
                             }
-
                         }
 
                         if (line.IndexOf("bestmove") != -1)
                         { 
                             Console.WriteLine("depth " + intDepth);
                             Console.WriteLine(line);
-                            currentMsg.connection.Send(line);
-                            WriteInfo(currentMsg.connection.ConnectionInfo.ClientIpAddress + ":" + currentMsg.connection.ConnectionInfo.ClientPort.ToString() + " " + line);
-                            currentMsg.connection = null;
-                            currentMsg.isreturn = true;
+                            WriteInfo(line);
+                            user.Deal(line);
+                            
                             //返回结果后删除消息
-                            MsgQueue.Dequeue();
+                            user.currentRole = null;
+                            RoleQueue.Dequeue();
                             nMsgQueuecount++;
                             isLock = false;
                         }
@@ -378,18 +194,32 @@ namespace Fleck.aiplay
             }
             //p.WaitForExit();
         }
-
+        //消息队列
+        public void EnqueueMessage(Role role)
+        {
+            RoleQueue.Enqueue(role);
+            //30秒未处理则重启引擎
+            DateTime tt = System.DateTime.Now;
+            Msg firstMsg = role.dealList.Peek();
+            TimeSpan span = tt.Subtract(firstMsg.createTime);
+            if (span.Seconds > 20)
+            {
+                RoleQueue.Dequeue();
+                resetEngine();
+            }
+        }   
+        
         public void Start()
         {
-            LoadXml();
+            setting = new Setting();
             log = new Log();
-            MsgQueue = new Queue();
+            RoleQueue = new Queue();
             nMsgQueuecount = 0;
             isLock = false;
+            user = new User();
+            redis = new RedisHelper();
 
-            InitRedis();
-
-            OnReceive();
+            OnPipe();
 
             OnDeal();
 
@@ -397,6 +227,175 @@ namespace Fleck.aiplay
 
             OnTimeDeal();
         }
+
+        public void OnOpen(IWebSocketConnection socket)
+        {
+            user.Add(socket);
+            Console.WriteLine(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " Connected!");
+            WriteInfo(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " Connected!");                        
+        }
+       
+        public void OnClose(IWebSocketConnection socket)
+        {
+            Console.WriteLine(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " Close!");
+            WriteInfo(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " Close!");
+            user.Remove(socket);           
+        }
+
+        public void OnMessage(IWebSocketConnection socket, string message)
+        {
+            string[] sArray = message.Split(' ');
+            if (sArray[0] == "listmessage" && sArray[1] == "at" && sArray.Length == 3)
+            {
+                int seek = Int32.Parse(sArray[2]);
+//                 if (seek < allRoles.Count)
+//                 {
+//                     var r = allRoles[seek];
+//                     var connection = r.connection;
+//                     socket.Send(connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " " + r.currentTime.ToString() + " open");
+//                     foreach (var m in r.message.ToList())
+//                     {
+//                         socket.Send(connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " " + m);
+//                     }
+//                 }
+                return;
+            }
+            if (message == "listallmessage")
+            {
+//                 foreach (var r in allRoles.ToList())
+//                 {
+//                     var connection = r.connection;
+//                     socket.Send(connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " " + r.currentTime.ToString() + " open");
+//                     foreach (var m in r.message.ToList())
+//                     {
+//                         socket.Send(connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " " + m);
+//                     }
+//                 }
+               return;
+            }          
+
+            //comm.WriteInfo(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " " + message);        
+
+            if (message.IndexOf("queryall") != -1)
+            {
+                string strquery = redis.QueryallFromCloud(message);
+                if (strquery != null)
+                {
+                    socket.Send(strquery);
+                }
+                return;
+            }
+            if (message == "HeartBeat")
+            {
+                return;
+            }
+            if (message == "count")
+            {
+               // socket.Send("There are " + user.allSockets.Count + " clients online.");
+            }
+            if (message == "list")
+            {
+//                 int no = 1;
+//                 allSockets.ToList().ForEach(
+//                     s => socket.Send((no++) + ": " + s.ConnectionInfo.ClientIpAddress + ":" + s.ConnectionInfo.ClientPort.ToString())
+//                     );
+//                 socket.Send("There are " + allSockets.Count + " clients online.");
+            }
+            if (message == "msgcount")
+            {
+                socket.Send("There are " + getMsgQueueCount() + " messages haven't deal.");
+            }
+            if (message == "dealspeed")
+            {
+                socket.Send("The deal speed is " + getDealspeed() + " peer minute.");
+            }
+            if (message == "timeout")
+            {
+                socket.Send("The thinktimeout is " + getThinktimeout() + " second.");
+            }
+            if (message == "depth")
+            {
+                socket.Send(getDepth());
+            }
+            if (message == "cloudapi")
+            {
+                socket.Send(getSupportCloudApi().ToString());
+            }
+            if (message == "reload")
+            {
+                setting.LoadXml();
+            }
+            if (message == "reset")
+            {
+                resetEngine();
+            }
+            //过滤命令
+            if (message.IndexOf("position") == -1)
+            {
+                // socket.Send(message);
+                Console.WriteLine(message);
+                return;
+            }
+
+            List<string> list = redis.GetAllItemsFromList(message);
+            string strmsg;
+            int nlevel = Int32.Parse(Setting.level);
+            if (list.Count >= nlevel)
+            {
+                WriteInfo(message);
+                WriteInfo("getItemFromList");
+                Console.WriteLine("getFromList");
+
+                for (int i = 0; i < nlevel; i++)
+                {
+                    strmsg = list[i];
+                    if (strmsg.Length > 0)
+                    {
+                        socket.Send(strmsg);
+                        WriteInfo(strmsg);
+                    }
+
+                    if (strmsg.Length == 0)
+                    {
+                        string info = list[i - 1];
+                        if (info.Length > 0)
+                        {
+                            string[] infoArray = info.Split(' ');
+                            for (int j = 0; j < info.Length; j++)
+                            {
+                                if (infoArray[j] == "pv")
+                                {
+                                    socket.Send("bestmove " + info[j + 1]);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    if (i == nlevel - 1)
+                    {
+                        string[] infoArray = strmsg.Split(' ');
+                        for (int j = 0; j < strmsg.Length; j++)
+                        {
+                            if (infoArray[j] == "pv")
+                            {
+                                socket.Send("bestmove " + strmsg[j + 1]);
+                                return;
+                            }
+                        }
+
+                    }
+                }
+            }
+ 
+            var role = user.GetAt(socket);
+            role.EnqueueMessage(new Msg(message));
+
+
+            Console.WriteLine("There are " + getMsgQueueCount() + " messages haven't deal.");
+            return;
+        }
+      
         private static void OnTimedEvent(object source, ElapsedEventArgs e)
         {
             // Console.WriteLine(nMsgQueuecount);
@@ -416,12 +415,13 @@ namespace Fleck.aiplay
             if ((timeout++) > Setting.thinktimeout - 1)
             {
                 timeout = 0;
-                if (currentMsg != null && currentMsg.isreturn == false)
+              //  if (user.currentRole != null && currentMsg.isreturn == false)
                 {
                     PipeWriter.Write("stop\r\n");
                 }
             }
         }
+        
         public void OnTimeDeal()
         {
             System.Timers.Timer t = new System.Timers.Timer();
@@ -430,56 +430,12 @@ namespace Fleck.aiplay
             t.Enabled = true;
             timeout = 0;
         }
-        public void InitRedis()
+        
+        public void OnPipe()
         {
-            //获取Redis操作接口
-            Redis = RedisManager.GetClient();
-            //Hash表操作
-            operators = new HashOperator();
-
-            Redis.Password = "jiao19890228";
-        }
-
-
-        public void resetEngine()
-        {
-            isEngineRun = false;
-            try
-            {
-                pProcess.Kill();
-                pProcess.Close();
-            }
-            catch (System.Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                WriteInfo("[error]  resetEngine" + ex.Message);
-            }
-
-            PipeWriter = null;
-            LoadXml();
-            WriteInfo("resetEngine:" + Setting.engine);
-            OnReceive();
-            isLock = false;
-        }
-
-        public string getDepth()
-        {
-            return Setting.level;
-        }
-        public string getThinktimeout()
-        {
-            return Setting.thinktimeout.ToString();
-        }
-        public bool getSupportCloudApi()
-        {
-            return Setting.isSupportCloudApi;
-        }
-
-        public void OnReceive()
-        {
-            Thread receiveDataThread = new Thread(new ThreadStart(ReceiveMessage));
-            receiveDataThread.IsBackground = true;
-            receiveDataThread.Start();
+            Thread pipeThread = new Thread(new ThreadStart(PipeThread));
+            pipeThread.IsBackground = true;
+            pipeThread.Start();
         }
 
         public void OnDeal()
@@ -487,96 +443,6 @@ namespace Fleck.aiplay
             Thread DealMeassgaehread = new Thread(new ThreadStart(DealMessage));
             DealMeassgaehread.IsBackground = true;
             DealMeassgaehread.Start();
-        }
-
-        public void OnMessage(Msg msg)
-        {
-            MsgQueue.Enqueue(msg);
-            //30秒未处理则重启引擎
-            DateTime tt = System.DateTime.Now;
-            Msg firstMsg = (Msg)MsgQueue.Peek();
-            TimeSpan span = tt.Subtract(firstMsg.currentTime);
-            if (span.Seconds > 20)
-            {
-                MsgQueue.Dequeue();
-                resetEngine();
-            }
-        }
-
-        public void LoadXml()
-        {
-            XmlDocument doc = new XmlDocument();
-            doc.Load(".\\config.xml");
-            XmlNode xn = doc.SelectSingleNode("configuration");
-            XmlNodeList xnl = xn.ChildNodes;
-            foreach (XmlNode xn1 in xnl)
-            {
-                XmlElement xe = (XmlElement)xn1;
-                if (xe.GetAttribute("key").ToString() == "Port")
-                {
-                    Setting.port = xe.GetAttribute("value").ToString();
-                }
-                if (xe.GetAttribute("key").ToString() == "Level")
-                {
-                    Setting.level = xe.GetAttribute("value").ToString();
-                }
-                if (xe.GetAttribute("key").ToString() == "Thinktimeout")
-                {
-                    Setting.thinktimeout = int.Parse(xe.GetAttribute("value").ToString());
-                }
-                if (xe.GetAttribute("key").ToString() == "CloudAPI")
-                {
-                    Setting.isSupportCloudApi = Convert.ToBoolean(xe.GetAttribute("value"));
-                }
-                if (xe.GetAttribute("key").ToString() == "EnginePath")
-                {
-                    Setting.engine = xe.GetAttribute("value").ToString();
-                }
-            }
-        }
-
-        public string HttpPostConnectToServer(string serverUrl, string postData)
-        {
-            var dataArray = Encoding.UTF8.GetBytes(postData);
-            //创建请求  
-            var request = (HttpWebRequest)HttpWebRequest.Create(serverUrl);
-            request.Method = "POST";
-            request.ContentLength = dataArray.Length;
-            //设置上传服务的数据格式  
-            request.ContentType = "application/x-www-form-urlencoded";
-            //请求的身份验证信息为默认  
-            request.Credentials = CredentialCache.DefaultCredentials;
-            //请求超时时间  
-            request.Timeout = 10000;
-            //创建输入流  
-            Stream dataStream;
-            try
-            {
-                dataStream = request.GetRequestStream();
-            }
-            catch (Exception)
-            {
-                return null;//连接服务器失败  
-            }
-            //发送请求  
-            dataStream.Write(dataArray, 0, dataArray.Length);
-            dataStream.Close();
-            //读取返回消息  
-            string res = "";
-            try
-            {
-                var response = (HttpWebResponse)request.GetResponse();
-                var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8);
-                res = reader.ReadToEnd();
-                reader.Close();
-            }
-            catch (Exception ex)
-            {
-                WriteInfo("[error] HttpPostConnectToServer" + ex.Message);
-            }
-            return res;
-        }
-
-
+        }       
     }
 }
