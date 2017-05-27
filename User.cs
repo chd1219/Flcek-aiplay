@@ -11,12 +11,14 @@ namespace Fleck.aiplay
         public Queue<Msg> dealList { get; set; }
         public Queue<Msg> finishList { get; set; }
         public DateTime createTime { get; set; }
+        public DateTime lastdealTime { get; set; }
         public Role()
         {
             connection = null;
             dealList = new Queue<Msg>();
             finishList = new Queue<Msg>();
             createTime = System.DateTime.Now;
+            lastdealTime = System.DateTime.Now;
         }
         public Role(IWebSocketConnection connection)
         {
@@ -24,10 +26,59 @@ namespace Fleck.aiplay
             dealList = new Queue<Msg>();
             finishList = new Queue<Msg>();
             createTime = System.DateTime.Now;
+            lastdealTime = System.DateTime.Now;
         }
         public void EnqueueMessage(Msg msg)
         {
             dealList.Enqueue(msg);
+        }
+        public override string ToString()
+        {
+            return connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " createTime:" + createTime.ToString() + " lastdealTime:" + lastdealTime.ToString(); ;
+        }
+        public void Deal(string line)
+        {
+            connection.Send(line);
+            Msg msg = dealList.Peek();
+            msg.dealTime = System.DateTime.Now;
+            msg.retval = line;
+            msg.isreturn = true;
+            finishList.Enqueue(msg);
+            dealList.Dequeue();
+            lastdealTime = msg.dealTime;
+        }
+
+        public Msg GetCurrentMsg()
+        {
+            return dealList.Peek();
+        }
+
+        public void Send(string line)
+        {
+            connection.Send(line);
+        }
+        //检查用户活跃度，10分钟不操作认为离线
+        public bool isActive()
+        {
+            DateTime currentTime = System.DateTime.Now;
+            TimeSpan span = currentTime.Subtract(lastdealTime);
+            if (span.Minutes > 10)
+            {
+                return false;
+            }
+            return true;
+        }
+        //检查消息处理，20秒不操作认为离线
+        public bool Check()
+        {
+            DateTime currentTime = System.DateTime.Now;
+            Msg firstMsg = GetCurrentMsg();
+            TimeSpan span = currentTime.Subtract(firstMsg.createTime);
+            if (span.Seconds > 20)
+            {
+                return false;
+            }
+            return true;
         }
     }
 
@@ -58,8 +109,8 @@ namespace Fleck.aiplay
 
     class User
     {
-        List<IWebSocketConnection> allSockets;
-        List<Role> allRoles;
+        public List<IWebSocketConnection> allSockets;
+        public List<Role> allRoles;
         public Role currentRole { get; set; }
         public Role currentMsg { get; set; }
         public User()
@@ -92,26 +143,6 @@ namespace Fleck.aiplay
             int index = allSockets.IndexOf(socket);
             return allRoles[index];
         }
-
-        public Msg GetCurrentMsg()
-        {
-            return currentRole.dealList.Peek();
-        }
-
-        public void Deal(string line)
-        {
-            currentRole.connection.Send(line);
-            Msg msg = GetCurrentMsg();
-            msg.dealTime = System.DateTime.Now;
-            msg.retval = line;
-            msg.isreturn = true;
-            currentRole.finishList.Enqueue(msg);
-            currentRole.dealList.Dequeue();      
-        }
-
-        public void Send(string line)
-        {
-            currentRole.connection.Send(line);
-        }
+        
     }
 }

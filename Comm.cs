@@ -20,7 +20,8 @@ namespace Fleck.aiplay
         private static bool isLock { get; set; }
         Log log { get; set; }
         Setting setting;
-        Queue RoleQueue;
+        Queue EngineerQueue;
+        Queue DealSpeedQueue;
         RedisHelper redis;
         Process pProcess;
         Boolean isEngineRun;
@@ -35,7 +36,7 @@ namespace Fleck.aiplay
      
         public int getMsgQueueCount()
         {
-            return RoleQueue.Count;
+            return EngineerQueue.Count;
         }
       
         public int getDealspeed()
@@ -44,24 +45,28 @@ namespace Fleck.aiplay
         }
 
         public void resetEngine()
+        {            
+            KillPipeThread();
+            LoadXml();
+            WriteInfo("resetEngine:" + Setting.engine);
+            StartPipeThread();
+        }
+
+        private void KillPipeThread()
         {
             isEngineRun = false;
             try
             {
                 pProcess.Kill();
                 pProcess.Close();
+                PipeWriter = null;
             }
             catch (System.Exception ex)
             {
                 Console.WriteLine(ex.Message);
                 WriteInfo("[error]  resetEngine" + ex.Message);
             }
-
-            PipeWriter = null;
-            setting.LoadXml();
-            WriteInfo("resetEngine:" + Setting.engine);
-            OnPipe();
-            isLock = false;
+            Thread.Sleep(100);
         }
 
         public string getDepth()
@@ -79,26 +84,102 @@ namespace Fleck.aiplay
             return Setting.isSupportCloudApi;
         }  
        
+        private void LoadXml()
+        {
+            setting.LoadXml();
+        }
+
+        private int getUserCount()
+        {
+            return user.allSockets.Count;
+        }
+        
+        private void PipeInit(string strFile, string arg)
+        {
+            pProcess = new System.Diagnostics.Process();
+            pProcess.StartInfo = new System.Diagnostics.ProcessStartInfo();
+            pProcess.StartInfo.FileName = strFile;
+            pProcess.StartInfo.Arguments = arg;
+            pProcess.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+            pProcess.StartInfo.RedirectStandardOutput = true;
+            pProcess.StartInfo.RedirectStandardInput = true;
+            pProcess.StartInfo.UseShellExecute = false;
+            pProcess.StartInfo.CreateNoWindow = true;
+            pProcess.Start();
+        }
+        
         public void PipeThread()
         {
             isEngineRun = true;
-            Pipe(Setting.engine, "");
-            return;
-        }
+            try
+            {
+                //管道参数初始化
+                PipeInit(Setting.engine, "");
+                //截取输出流
+                StreamReader reader = pProcess.StandardOutput;
+                //截取输入流
+                PipeWriter = pProcess.StandardInput;
+                //每次读取一行
+                string line = reader.ReadLine();
+                Console.WriteLine(line);
+                int intDepth = 0;
+                while (isEngineRun)
+                {
+                    line = reader.ReadLine();
+                    Role role = user.currentRole;
+                    if (role != null && line != null)
+                    {
+                        string[] sArray = line.Split(' ');
+                        /* 消息过滤
+                         * info depth 14 seldepth 35 multipv 1 score 19 nodes 243960507 nps 6738309 hashfull 974 tbhits 0 time 36205 
+                         * pv h2e2 h9g7 h0g2 i9h9 i0h0 b9c7 h0h4 h7i7 h4h9 g7h9 c3c4 b7a7 b2c2 c9e7 c2c6 a9b9 b0c2 g6g5 a0a1 h9g7 
+                         */
+                        if (sArray[1] == "depth" && sArray[7] == "score")
+                        {
+                            intDepth = Int32.Parse(sArray[2]);
+                            role.Send(line);
+                            //插入redis表
+                            redis.SetItemInList(role.GetCurrentMsg().message, intDepth - 1, line);
+                            WriteInfo(line);
+                        }
 
-        public void DealMessage()
+                        if (line.IndexOf("bestmove") != -1)
+                        {
+                            Console.WriteLine("depth " + intDepth);
+                            Console.WriteLine(line);
+                            WriteInfo(line);
+                            role.Deal(line);
+                            //返回结果后删除消息
+                            user.currentRole = null;
+                            EngineerQueue.Dequeue();
+                            nMsgQueuecount++;
+                            isLock = false;
+                        }
+                        Thread.Sleep(10);
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                WriteInfo("[error] executeCommand " + ex.Message);
+            }
+        }        
+
+        public void DealThread()
         {
             while (true)
             {
                 try
                 {
-                    if (PipeWriter != null && RoleQueue.Count > 0 && isLock == false)
+                    if (PipeWriter != null && EngineerQueue.Count > 0 && isLock == false)
                     {
+                        //同步锁
                         isLock = true;
 
                         Msg msg = new Msg();
-                        user.currentRole = (Role)RoleQueue.Peek();
-                        msg = user.GetCurrentMsg();
+                        user.currentRole = (Role)EngineerQueue.Peek();
+                        msg = user.currentRole.GetCurrentMsg();
     
                         if (PipeWriter != null)
                         {
@@ -126,106 +207,52 @@ namespace Fleck.aiplay
             }
         }
 
-        void Pipe(string strFile, string args)
+        public void StatThread()
         {
-            try
+            while (true)
             {
-                pProcess = new System.Diagnostics.Process();
-                pProcess.StartInfo = new System.Diagnostics.ProcessStartInfo();
-                pProcess.StartInfo.FileName = strFile;
-                pProcess.StartInfo.Arguments = args;
-                pProcess.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
-                pProcess.StartInfo.RedirectStandardOutput = true;
-                pProcess.StartInfo.RedirectStandardInput = true;
-                pProcess.StartInfo.UseShellExecute = false;
-                pProcess.StartInfo.CreateNoWindow = true;
-                pProcess.Start();
-                StreamReader reader = pProcess.StandardOutput;//截取输出流
-                PipeWriter = pProcess.StandardInput;//截取输入流
-
-                string line = reader.ReadLine();//每次读取一行
-                Console.WriteLine(line);
-                int intDepth = 0;
-                while (isEngineRun)
+                if (DealSpeedQueue.Count >= 100)
                 {
-                    line = reader.ReadLine();
-                    if (user.currentRole != null && line != null)
-                    {
-                        string[] sArray = line.Split(' ');                        
-                        if (sArray[1] == "depth")
-                            intDepth = Int32.Parse(sArray[2]);
-                        //消息过滤，大于1层的消息才转发
-                        /*info depth 14 seldepth 35 multipv 1 score 19 nodes 243960507 nps 6738309 hashfull 974 tbhits 0 time 36205 
-                         * pv h2e2 h9g7 h0g2 i9h9 i0h0 b9c7 h0h4 h7i7 h4h9 g7h9 c3c4 b7a7 b2c2 c9e7 c2c6 a9b9 b0c2 g6g5 a0a1 h9g7 
-                         */
-                        if (intDepth > 0 && sArray[3] == "seldepth")
-                        {
-                            //Console.WriteLine(line);                           
-                            user.Send(line);
-                           // List<string> list = GetAllItemsFromList(currentMsg.message);
-                           // if (list.Count < intDepth)
-                            {
-                                redis.SetItemInList(user.GetCurrentMsg().message, intDepth - 1, line);
-                                WriteInfo(line);
-                            }
-                        }
-
-                        if (line.IndexOf("bestmove") != -1)
-                        { 
-                            Console.WriteLine("depth " + intDepth);
-                            Console.WriteLine(line);
-                            WriteInfo(line);
-                            user.Deal(line);
-                            
-                            //返回结果后删除消息
-                            user.currentRole = null;
-                            RoleQueue.Dequeue();
-                            nMsgQueuecount++;
-                            isLock = false;
-                        }
-                        Thread.Sleep(10);
-                    }
+                    DealSpeedQueue.Dequeue();
                 }
+                DealSpeedQueue.Enqueue(nMsgQueuecount);
+                nMsgQueuecount = 0;
+                //休眠60s
+                Thread.Sleep(60000);
             }
-            catch (System.Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                WriteInfo("[error] executeCommand " + ex.Message);
-            }
-            //p.WaitForExit();
-        }
-        //消息队列
-        public void EnqueueMessage(Role role)
+        }    
+
+        public void EnqueueEngineerMessage(Role role)
         {
-            RoleQueue.Enqueue(role);
-            //30秒未处理则重启引擎
-            DateTime tt = System.DateTime.Now;
-            Msg firstMsg = role.dealList.Peek();
-            TimeSpan span = tt.Subtract(firstMsg.createTime);
-            if (span.Seconds > 20)
+            EngineerQueue.Enqueue(role);
+            //检查处理队列，异常重启引擎
+            if (!role.Check())
             {
-                RoleQueue.Dequeue();
+                EngineerQueue.Dequeue();
                 resetEngine();
             }
         }   
         
         public void Start()
         {
+            //初始化对象
+            Init();           
+            //启动管道线程
+            StartPipeThread();
+            //启动处理线程
+            StartDealThread();
+            //统计在线用户的提交量
+            StartStatThread(); 
+        }
+
+        public void Init()
+        {
             setting = new Setting();
             log = new Log();
-            RoleQueue = new Queue();
-            nMsgQueuecount = 0;
-            isLock = false;
+            EngineerQueue = new Queue();
+            DealSpeedQueue = new Queue();                
             user = new User();
             redis = new RedisHelper();
-
-            OnPipe();
-
-            OnDeal();
-
-            OnTime();
-
-            OnTimeDeal();
         }
 
         public void OnOpen(IWebSocketConnection socket)
@@ -244,99 +271,118 @@ namespace Fleck.aiplay
 
         public void OnMessage(IWebSocketConnection socket, string message)
         {
-            string[] sArray = message.Split(' ');
-            if (sArray[0] == "listmessage" && sArray[1] == "at" && sArray.Length == 3)
+            switch (message)
             {
-                int seek = Int32.Parse(sArray[2]);
-//                 if (seek < allRoles.Count)
-//                 {
-//                     var r = allRoles[seek];
-//                     var connection = r.connection;
-//                     socket.Send(connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " " + r.currentTime.ToString() + " open");
-//                     foreach (var m in r.message.ToList())
-//                     {
-//                         socket.Send(connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " " + m);
-//                     }
-//                 }
-                return;
-            }
-            if (message == "listallmessage")
-            {
-//                 foreach (var r in allRoles.ToList())
-//                 {
-//                     var connection = r.connection;
-//                     socket.Send(connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " " + r.currentTime.ToString() + " open");
-//                     foreach (var m in r.message.ToList())
-//                     {
-//                         socket.Send(connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " " + m);
-//                     }
-//                 }
-               return;
+                case "HeartBeat":
+                    break;
+                case "count":
+                    {
+                        socket.Send("There are " + getUserCount() + " clients online.");
+                        break;
+                    }               
+                case "msgcount":
+                    {
+                        socket.Send("There are " + getMsgQueueCount() + " messages haven't deal.");
+                        break;
+                    }
+                case "dealspeed":
+                    {
+                        socket.Send("The deal speed is " + getDealspeed() + " peer minute.");
+                        break;
+                    }
+                case "timeout":
+                    {
+                        socket.Send("The thinktimeout is " + getThinktimeout() + " second.");
+                        break;
+                    }
+                case "depth":
+                    {
+                        socket.Send(getDepth());
+                        break;
+                    }
+                case "cloudapi":
+                    {
+                        socket.Send(getSupportCloudApi().ToString());
+                        break;
+                    }
+                case "reload":
+                    {
+                        LoadXml();                        
+                        break;
+                    }
+                case "reset":
+                    {
+                        resetEngine();
+                        break;
+                    }
+                case "list":
+                    {
+                        DealListMessage(socket);
+                        break;
+                    }//统计在线用户的活跃度
+                case "active":
+                    {
+                        DealActiveMessage(socket);
+                        break;
+                    }
+                default:
+                    {
+                        //过滤命令
+                        if (message.IndexOf("queryall") != -1)
+                        {
+                            DealQueryallMessage(socket, message);                            
+                        }
+                        else if (message.IndexOf("position") != -1)
+                        {
+                            DealPositionMessage(socket, message);
+                        }
+                        else
+                        {
+                            Console.WriteLine(message);
+                        }                        
+                        break;
+                    }
             }          
+            
+        }
 
-            //comm.WriteInfo(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " " + message);        
-
-            if (message.IndexOf("queryall") != -1)
+        private void DealActiveMessage(IWebSocketConnection socket)
+        {
+            int no = 0;
+            foreach (Role r in user.allRoles)
             {
-                string strquery = redis.QueryallFromCloud(message);
-                if (strquery != null)
+                if (r.isActive())
                 {
-                    socket.Send(strquery);
+                    socket.Send((no++)+1 + ": " + r.ToString());
                 }
-                return;
-            }
-            if (message == "HeartBeat")
-            {
-                return;
-            }
-            if (message == "count")
-            {
-               // socket.Send("There are " + user.allSockets.Count + " clients online.");
-            }
-            if (message == "list")
-            {
-//                 int no = 1;
-//                 allSockets.ToList().ForEach(
-//                     s => socket.Send((no++) + ": " + s.ConnectionInfo.ClientIpAddress + ":" + s.ConnectionInfo.ClientPort.ToString())
-//                     );
-//                 socket.Send("There are " + allSockets.Count + " clients online.");
-            }
-            if (message == "msgcount")
-            {
-                socket.Send("There are " + getMsgQueueCount() + " messages haven't deal.");
-            }
-            if (message == "dealspeed")
-            {
-                socket.Send("The deal speed is " + getDealspeed() + " peer minute.");
-            }
-            if (message == "timeout")
-            {
-                socket.Send("The thinktimeout is " + getThinktimeout() + " second.");
-            }
-            if (message == "depth")
-            {
-                socket.Send(getDepth());
-            }
-            if (message == "cloudapi")
-            {
-                socket.Send(getSupportCloudApi().ToString());
-            }
-            if (message == "reload")
-            {
-                setting.LoadXml();
-            }
-            if (message == "reset")
-            {
-                resetEngine();
-            }
-            //过滤命令
-            if (message.IndexOf("position") == -1)
-            {
-                // socket.Send(message);
-                Console.WriteLine(message);
-                return;
-            }
+            }           
+            socket.Send("There are " + no + " clients active.");
+        }
+        
+        private void DealListMessage(IWebSocketConnection socket)
+        {
+            int no = 0;
+            user.allRoles.ToList().ForEach(
+                r => socket.Send((no++)+1 + ": " + r.ToString())
+                );
+            socket.Send("There are " + no + " clients online.");
+        }
 
+        private void DealQueryallMessage(IWebSocketConnection socket, string message)
+        {
+            string str = redis.QueryallFromCloud(message);
+            if (str != null)
+            {
+                socket.Send(str);
+            }
+        }
+
+        private void DealPositionMessage(IWebSocketConnection socket, string message)
+        {
+            //记录每个用户的消息队列
+            var role = user.GetAt(socket);
+            role.EnqueueMessage(new Msg(message));
+            //查redis表
             List<string> list = redis.GetAllItemsFromList(message);
             string strmsg = "";
             int nlevel = Int32.Parse(Setting.level);
@@ -359,72 +405,43 @@ namespace Fleck.aiplay
                 if (strmsg.Length > 0)
                 {
                     string[] infoArray = strmsg.Split(' ');
-                    for (int j = 0; j < strmsg.Length; j++)
+                    for (int j = 0; j < infoArray.Length; j++)
                     {
                         if (infoArray[j] == "pv")
                         {
-                            socket.Send("bestmove " + strmsg[j + 1]);
+                            role.Deal("bestmove " + infoArray[j + 1]);
                             return;
                         }
                     }
-                }     
-            }
- 
-            var role = user.GetAt(socket);
-            role.EnqueueMessage(new Msg(message));
-
-
-            Console.WriteLine("There are " + getMsgQueueCount() + " messages haven't deal.");
-            return;
-        }
-      
-        private static void OnTimedEvent(object source, ElapsedEventArgs e)
-        {
-            // Console.WriteLine(nMsgQueuecount);
-            nMsgQueuecount = 0;
-        }
-
-        public void OnTime()
-        {
-            System.Timers.Timer t = new System.Timers.Timer();
-            t.Elapsed += new ElapsedEventHandler(OnTimedEvent);
-            t.Interval = 60000;
-            t.Enabled = true;
-        }
-
-        private static void OnTimedEventDeal(object source, ElapsedEventArgs e)
-        {
-            if ((timeout++) > Setting.thinktimeout - 1)
-            {
-                timeout = 0;
-              //  if (user.currentRole != null && currentMsg.isreturn == false)
-                {
-                    PipeWriter.Write("stop\r\n");
                 }
             }
+            //加入引擎处理队列          
+            EnqueueEngineerMessage(role);
+
+            Console.WriteLine("There are " + getMsgQueueCount() + " messages haven't deal.");
         }
         
-        public void OnTimeDeal()
-        {
-            System.Timers.Timer t = new System.Timers.Timer();
-            t.Elapsed += new ElapsedEventHandler(OnTimedEventDeal);
-            t.Interval = 1000;
-            t.Enabled = true;
-            timeout = 0;
-        }
-        
-        public void OnPipe()
+        public void StartPipeThread()
         {
             Thread pipeThread = new Thread(new ThreadStart(PipeThread));
             pipeThread.IsBackground = true;
             pipeThread.Start();
+            isLock = false;
         }
 
-        public void OnDeal()
+        public void StartDealThread()
         {
-            Thread DealMeassgaehread = new Thread(new ThreadStart(DealMessage));
-            DealMeassgaehread.IsBackground = true;
-            DealMeassgaehread.Start();
+            Thread dealThread = new Thread(new ThreadStart(DealThread));
+            dealThread.IsBackground = true;
+            dealThread.Start();
+        }
+
+        public void StartStatThread()
+        {
+            Thread statThread = new Thread(new ThreadStart(StatThread));
+            statThread.IsBackground = true;
+            statThread.Start();
+            nMsgQueuecount = 0;        
         }       
     }
 }
