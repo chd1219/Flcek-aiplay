@@ -338,7 +338,7 @@ namespace Fleck.aiplay
             }
 
             List<string> list = redis.GetAllItemsFromList(message);
-            string strmsg;
+            string strmsg = "";
             int nlevel = Int32.Parse(Setting.level);
             if (list.Count >= nlevel)
             {
@@ -346,46 +346,28 @@ namespace Fleck.aiplay
                 WriteInfo("getItemFromList");
                 Console.WriteLine("getFromList");
 
+                //过滤空消息
                 for (int i = 0; i < nlevel; i++)
                 {
-                    strmsg = list[i];
-                    if (strmsg.Length > 0)
+                    if (list[i].Length > 0)
                     {
+                        strmsg = list[i];
                         socket.Send(strmsg);
                         WriteInfo(strmsg);
                     }
-
-                    if (strmsg.Length == 0)
-                    {
-                        string info = list[i - 1];
-                        if (info.Length > 0)
-                        {
-                            string[] infoArray = info.Split(' ');
-                            for (int j = 0; j < info.Length; j++)
-                            {
-                                if (infoArray[j] == "pv")
-                                {
-                                    socket.Send("bestmove " + info[j + 1]);
-                                    return;
-                                }
-                            }
-                        }
-                    }
-
-                    if (i == nlevel - 1)
-                    {
-                        string[] infoArray = strmsg.Split(' ');
-                        for (int j = 0; j < strmsg.Length; j++)
-                        {
-                            if (infoArray[j] == "pv")
-                            {
-                                socket.Send("bestmove " + strmsg[j + 1]);
-                                return;
-                            }
-                        }
-
-                    }
                 }
+                if (strmsg.Length > 0)
+                {
+                    string[] infoArray = strmsg.Split(' ');
+                    for (int j = 0; j < strmsg.Length; j++)
+                    {
+                        if (infoArray[j] == "pv")
+                        {
+                            socket.Send("bestmove " + strmsg[j + 1]);
+                            return;
+                        }
+                    }
+                }     
             }
  
             var role = user.GetAt(socket);
