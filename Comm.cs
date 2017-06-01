@@ -29,9 +29,13 @@ namespace Fleck.aiplay
         private static int nMsgQueuecount { get; set; }
         private static int timeout { get; set; }        
 
-        public void WriteInfo(string message)
+        public void WriteInfo(string message, bool isOutConsole = true)
         {
             log.WriteInfo(message);
+            if (isOutConsole)
+            {
+                Console.WriteLine(message);
+            }
         }
      
         public int getMsgQueueCount()
@@ -63,7 +67,6 @@ namespace Fleck.aiplay
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
                 WriteInfo("[error]  resetEngine" + ex.Message);
             }
             Thread.Sleep(100);
@@ -146,7 +149,6 @@ namespace Fleck.aiplay
                         if (line.IndexOf("bestmove") != -1)
                         {
                             Console.WriteLine("depth " + intDepth);
-                            Console.WriteLine(line);
                             WriteInfo(line);
                             role.Deal(line);
                             //返回结果后删除消息
@@ -161,7 +163,6 @@ namespace Fleck.aiplay
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
                 WriteInfo("[error] executeCommand " + ex.Message);
             }
         }        
@@ -183,9 +184,9 @@ namespace Fleck.aiplay
     
                         if (PipeWriter != null)
                         {
+                            WriteInfo(user.currentRole.GetAddr());
                             WriteInfo(msg.message);
                             WriteInfo("getFromEngineer");
-                            Console.WriteLine("getFormEngineer");
                             PipeWriter.Write(msg.message + "\r\n");
                             PipeWriter.Write("go depth " + Setting.level + "\r\n");
 
@@ -198,7 +199,6 @@ namespace Fleck.aiplay
                 }
                 catch (System.Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
                     WriteInfo("[error] DealMessage" + ex.Message);
                     resetEngine();
                 }
@@ -257,15 +257,15 @@ namespace Fleck.aiplay
 
         public void OnOpen(IWebSocketConnection socket)
         {
-            user.Add(socket);
-            Console.WriteLine(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " Connected!");
-            WriteInfo(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " Connected!");                        
+            var role = new Role(socket);
+            user.Add(role);
+            WriteInfo(role.GetAddr() + " Connected! They are " + user.getSize() + " Clients online");                     
         }
        
         public void OnClose(IWebSocketConnection socket)
         {
-            Console.WriteLine(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " Close!");
-            WriteInfo(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " Close!");
+            var role = user.GetAt(socket);
+            WriteInfo(role.GetAddr() + " Close!");
             user.Remove(socket);           
         }
 
@@ -388,28 +388,28 @@ namespace Fleck.aiplay
             int nlevel = Int32.Parse(Setting.level);
             if (list.Count >= nlevel)
             {
+                WriteInfo(role.GetAddr());
                 WriteInfo(message);
-                WriteInfo("getItemFromList");
-                Console.WriteLine("getFromList");
-
+                WriteInfo("getFromList");
                 //过滤空消息
                 for (int i = 0; i < nlevel; i++)
                 {
                     if (list[i].Length > 0)
                     {
                         strmsg = list[i];
-                        socket.Send(strmsg);
-                        WriteInfo(strmsg);
+                        socket.Send(strmsg);                        
                     }
-                }
+                }            
                 if (strmsg.Length > 0)
-                {
+                {    
+                    WriteInfo(strmsg);
                     string[] infoArray = strmsg.Split(' ');
                     for (int j = 0; j < infoArray.Length; j++)
                     {
                         if (infoArray[j] == "pv")
                         {
                             role.Deal("bestmove " + infoArray[j + 1]);
+                            WriteInfo("bestmove " + infoArray[j + 1]);
                             return;
                         }
                     }

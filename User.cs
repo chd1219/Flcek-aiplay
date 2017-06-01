@@ -48,6 +48,11 @@ namespace Fleck.aiplay
             lastdealTime = msg.dealTime;
         }
 
+        public string GetAddr()
+        {
+            return connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString();
+        }
+
         public Msg GetCurrentMsg()
         {
             return dealList.Peek();
@@ -119,6 +124,12 @@ namespace Fleck.aiplay
             allRoles = new List<Role>();
         }
 
+        public void Add(Role role)
+        {
+            allRoles.Add(role);
+            allSockets.Add(role.connection);
+        }
+
         public void Add(IWebSocketConnection socket)
         {
             var role = new Role(socket);
@@ -143,6 +154,11 @@ namespace Fleck.aiplay
             int index = allSockets.IndexOf(socket);
             return allRoles[index];
         }
-        
+
+
+        public int getSize()
+        {
+            return allRoles.Count;
+        }
     }
 }
