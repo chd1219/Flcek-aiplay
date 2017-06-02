@@ -22,6 +22,17 @@ namespace Fleck.aiplay
             LogPath = DateTime.Now.ToLongDateString();
             log = new StreamWriter(spath + "/" + LogPath + "-" + Setting.port + ".log", true);
         }
+
+        public Log(string name)
+        {
+            if (!Directory.Exists(spath))
+            {
+                DirectoryInfo directoryInfo = new DirectoryInfo(spath);
+                directoryInfo.Create();
+            }
+            log = new StreamWriter(spath + "/" + name + ".log", true);
+        }
+
         public void WriteInfo(string message)
         {
             if (LogPath != DateTime.Now.ToLongDateString())
@@ -32,6 +43,12 @@ namespace Fleck.aiplay
             }
             WriteInfo("{0}", message);
         }
+
+        public void WritePosition(string message)
+        {
+            WriteInfo("{0}", message);
+        }
+
         public void WriteInfo(string format, params object[] obj)
         {
             try

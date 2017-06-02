@@ -67,7 +67,7 @@ namespace Fleck.aiplay
         {
             DateTime currentTime = System.DateTime.Now;
             TimeSpan span = currentTime.Subtract(lastdealTime);
-            if (span.Minutes > 10)
+            if (span.Minutes > 9)
             {
                 return false;
             }

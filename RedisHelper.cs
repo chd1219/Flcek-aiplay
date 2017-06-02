@@ -111,8 +111,7 @@ namespace Fleck.aiplay
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
-                //WriteInfo("[error QuerybestFromCloud]" + ex.Message);
+                Console.WriteLine("[error] QuerybestFromCloud " + ex.Message);
             }
             return serverResult;
         }
@@ -150,8 +149,7 @@ namespace Fleck.aiplay
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
-                //WriteInfo("[error QueryallFromCloud]" + ex.Message);
+                Console.WriteLine("[error] QueryallFromCloud " + ex.Message);
             }
             return serverResult;
         }
@@ -193,7 +191,7 @@ namespace Fleck.aiplay
             }
             catch (Exception ex)
             {
-                //WriteInfo("[error] HttpPostConnectToServer" + ex.Message);
+                Console.WriteLine("[error] HttpPostConnectToServer " + ex.Message);
             }
             return res;
         }

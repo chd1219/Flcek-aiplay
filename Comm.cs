@@ -18,7 +18,8 @@ namespace Fleck.aiplay
     {
         private static StreamWriter PipeWriter { get; set; }
         private static bool isLock { get; set; }
-        Log log { get; set; }
+        Log log;
+        Log logPosition;
         Setting setting;
         Queue EngineerQueue;
         Queue DealSpeedQueue;
@@ -36,6 +37,11 @@ namespace Fleck.aiplay
             {
                 Console.WriteLine(message);
             }
+        }
+
+        public void WritePosition(string message)
+        {
+            logPosition.WritePosition(message);            
         }
      
         public int getMsgQueueCount()
@@ -137,13 +143,13 @@ namespace Fleck.aiplay
                          * info depth 14 seldepth 35 multipv 1 score 19 nodes 243960507 nps 6738309 hashfull 974 tbhits 0 time 36205 
                          * pv h2e2 h9g7 h0g2 i9h9 i0h0 b9c7 h0h4 h7i7 h4h9 g7h9 c3c4 b7a7 b2c2 c9e7 c2c6 a9b9 b0c2 g6g5 a0a1 h9g7 
                          */
-                        if (sArray[1] == "depth" && sArray[7] == "score")
+                        if (sArray.Length > 3 && sArray[1] == "depth" && sArray[3] == "seldepth")
                         {
                             intDepth = Int32.Parse(sArray[2]);
                             role.Send(line);
                             //插入redis表
                             redis.SetItemInList(role.GetCurrentMsg().message, intDepth - 1, line);
-                            WriteInfo(line);
+                            WriteInfo(line, false);
                         }
 
                         if (line.IndexOf("bestmove") != -1)
@@ -184,8 +190,6 @@ namespace Fleck.aiplay
     
                         if (PipeWriter != null)
                         {
-                            WriteInfo(user.currentRole.GetAddr());
-                            WriteInfo(msg.message);
                             WriteInfo("getFromEngineer");
                             PipeWriter.Write(msg.message + "\r\n");
                             PipeWriter.Write("go depth " + Setting.level + "\r\n");
@@ -199,7 +203,7 @@ namespace Fleck.aiplay
                 }
                 catch (System.Exception ex)
                 {
-                    WriteInfo("[error] DealMessage" + ex.Message);
+                    WriteInfo("[error] DealMessage " + ex.Message);
                     resetEngine();
                 }
 
@@ -249,6 +253,7 @@ namespace Fleck.aiplay
         {
             setting = new Setting();
             log = new Log();
+            logPosition = new Log("Position");
             EngineerQueue = new Queue();
             DealSpeedQueue = new Queue();                
             user = new User();
@@ -335,6 +340,7 @@ namespace Fleck.aiplay
                         else if (message.IndexOf("position") != -1)
                         {
                             DealPositionMessage(socket, message);
+                            WritePosition(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " " + message);                            
                         }
                         else
                         {
@@ -388,8 +394,6 @@ namespace Fleck.aiplay
             int nlevel = Int32.Parse(Setting.level);
             if (list.Count >= nlevel)
             {
-                WriteInfo(role.GetAddr());
-                WriteInfo(message);
                 WriteInfo("getFromList");
                 //过滤空消息
                 for (int i = 0; i < nlevel; i++)
@@ -402,14 +406,13 @@ namespace Fleck.aiplay
                 }            
                 if (strmsg.Length > 0)
                 {    
-                    WriteInfo(strmsg);
                     string[] infoArray = strmsg.Split(' ');
                     for (int j = 0; j < infoArray.Length; j++)
                     {
                         if (infoArray[j] == "pv")
                         {
                             role.Deal("bestmove " + infoArray[j + 1]);
-                            WriteInfo("bestmove " + infoArray[j + 1]);
+                            WriteInfo("depth " + infoArray[2]+" bestmove " + infoArray[j + 1]);
                             return;
                         }
                     }
