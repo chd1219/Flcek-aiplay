@@ -8,44 +8,40 @@ namespace Fleck.aiplay
     class Role
     {
         public IWebSocketConnection connection { get; set; }
-        public Queue<Msg> dealList { get; set; }
-        public Queue<Msg> finishList { get; set; }
+        public Queue<Msg> MsgQueue { get; set; }
+        public Msg currentMsg { get; set; }
         public DateTime createTime { get; set; }
         public DateTime lastdealTime { get; set; }
         public Role()
         {
             connection = null;
-            dealList = new Queue<Msg>();
-            finishList = new Queue<Msg>();
+            MsgQueue = new Queue<Msg>();
             createTime = System.DateTime.Now;
             lastdealTime = System.DateTime.Now;
         }
         public Role(IWebSocketConnection connection)
         {
             this.connection = connection;
-            dealList = new Queue<Msg>();
-            finishList = new Queue<Msg>();
+            MsgQueue = new Queue<Msg>();
             createTime = System.DateTime.Now;
             lastdealTime = System.DateTime.Now;
         }
         public void EnqueueMessage(Msg msg)
         {
-            dealList.Enqueue(msg);
+            MsgQueue.Enqueue(msg);
+            currentMsg = msg;
         }
         public override string ToString()
         {
             return connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " createTime:" + createTime.ToString() + " lastdealTime:" + lastdealTime.ToString(); ;
         }
-        public void Deal(string line)
+        public void Done(string line)
         {
-            connection.Send(line);
-            Msg msg = dealList.Peek();
-            msg.dealTime = System.DateTime.Now;
-            msg.retval = line;
-            msg.isreturn = true;
-            finishList.Enqueue(msg);
-            dealList.Dequeue();
-            lastdealTime = msg.dealTime;
+            Send(line);
+            currentMsg.dealTime = System.DateTime.Now;
+            currentMsg.retval = line;
+            currentMsg.isreturn = true;
+            lastdealTime = currentMsg.dealTime;
         }
 
         public string GetAddr()
@@ -55,7 +51,7 @@ namespace Fleck.aiplay
 
         public Msg GetCurrentMsg()
         {
-            return dealList.Peek();
+            return currentMsg;
         }
 
         public void Send(string line)
@@ -89,23 +85,29 @@ namespace Fleck.aiplay
 
     class Msg
     {
+        public string id { get; set; }
         public string message { get; set; }
+        public List<string> mList { get; set; }
         public bool isreturn { get; set; }
         public string retval { get; set; }
         public DateTime createTime { get; set; }
         public DateTime dealTime { get; set; }
         public Msg()
         {
+            id = "";
             message = "";
             retval = "";
+            mList = new List<string>();
             isreturn = false;
             createTime = System.DateTime.Now;
             dealTime = System.DateTime.Now;
         }
         public Msg(string message)
         {
+            id = "";
             this.message = message;
             retval = "";
+            mList = new List<string>();
             isreturn = false;
             createTime = System.DateTime.Now;
             dealTime = System.DateTime.Now;

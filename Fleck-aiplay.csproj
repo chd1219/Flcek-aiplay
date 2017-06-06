@@ -61,6 +61,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Comm.cs" />
+    <Compile Include="Engine.cs" />
     <Compile Include="HashOperator.cs" />
     <Compile Include="Log.cs" />
     <Compile Include="RedisHelper.cs" />

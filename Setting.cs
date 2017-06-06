@@ -36,7 +36,7 @@ namespace Fleck.aiplay
                 {
                     Setting.level = xe.GetAttribute("value").ToString();
                 }
-                if (xe.GetAttribute("key").ToString() == "Thinktimeout")
+                if (xe.GetAttribute("key").ToString() == "TimeOut")
                 {
                     Setting.thinktimeout = int.Parse(xe.GetAttribute("value").ToString());
                 }

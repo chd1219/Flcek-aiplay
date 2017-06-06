@@ -13,7 +13,7 @@ namespace Fleck.aiplay
     {
         static void Main()
         {
-            Comm comm = new Comm();
+            Engine comm = new Engine();
             comm.Start();
             
             FleckLog.Level = LogLevel.Debug;            

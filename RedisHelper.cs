@@ -37,7 +37,21 @@ namespace Fleck.aiplay
             }
 
         }
-       
+
+        public bool ContainsKey(string key)
+        {
+            lock (Redis)
+            {
+                if (GetListCount(key) >= Int32.Parse(Setting.level))
+                {
+                    return true;
+                }
+                Redis.RemoveAllFromList(key);
+                return false;
+            }
+
+        }
+
         public void setToRedis(string key, string value)
         {
             lock (Redis)
@@ -45,7 +59,15 @@ namespace Fleck.aiplay
                 Redis.SetEntryIfNotExists(key, value);
             }
         }
-        
+
+        public int GetListCount(string listId)
+        {
+            lock (Redis)
+            {
+                return Redis.GetListCount(listId);
+            }
+        }
+
         public List<string> GetAllItemsFromList(string listId)
         {
             lock (Redis)
@@ -70,6 +92,14 @@ namespace Fleck.aiplay
                 {
                     Redis.AddItemToList(listId, "");
                 }
+            }
+        }
+
+        public void PushItemToList(string listId, string value)
+        {
+            lock (Redis)
+            {
+                Redis.PushItemToList( listId, value)
             }
         }
         
