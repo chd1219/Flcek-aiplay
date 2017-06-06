@@ -136,7 +136,7 @@ namespace Fleck.aiplay
 
         public void getFromList(Role role, string message)
         {
-            WriteInfo("getFromList");
+            Console.WriteLine("getFromList");
             List<string> list = redis.GetAllItemsFromList(message);
             string strmsg = "";
             int nlevel = Int32.Parse(Setting.level);
@@ -159,7 +159,7 @@ namespace Fleck.aiplay
                         if (infoArray[j] == "pv")
                         {
                             role.Done("bestmove " + infoArray[j + 1]);
-                            WriteInfo("depth " + infoArray[2] + " bestmove " + infoArray[j + 1]);
+                            Console.WriteLine("depth " + infoArray[2] + " bestmove " + infoArray[j + 1]);
                             return;
                         }
                     }

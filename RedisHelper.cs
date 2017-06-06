@@ -99,7 +99,7 @@ namespace Fleck.aiplay
         {
             lock (Redis)
             {
-                Redis.PushItemToList( listId, value)
+                Redis.PushItemToList(listId, value);
             }
         }
         

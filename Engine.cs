@@ -275,8 +275,8 @@ namespace Fleck.aiplay
                         currentRole = EngineQueue.Dequeue();
 
                         Msg msg = currentRole.GetCurrentMsg();
-                        
-                        WriteInfo("getFromEngine");
+
+                        Console.WriteLine("getFromEngine");
                         PipeWriter.Write(msg.message + "\r\n");
                         PipeWriter.Write("go depth " + Setting.level + "\r\n");
 
