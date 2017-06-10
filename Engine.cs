@@ -104,7 +104,7 @@ namespace Fleck.aiplay
                             intDepth = Int32.Parse(sArray[2]);
                             currentRole.Send(line);
                             currentRole.GetCurrentMsg().mList.Add(line);
-                            redis.PushItemToList(currentRole.GetCurrentMsg().message, line);
+                           // redis.PushItemToList(currentRole.GetCurrentMsg().message, line);
                         }
 
                         if (line.IndexOf("bestmove") != -1)
@@ -220,7 +220,7 @@ namespace Fleck.aiplay
                         //过滤命令
                         if (message.IndexOf("queryall") != -1)
                         {
-                            DealQueryallMessage(socket, message);
+                          //  DealQueryallMessage(socket, message);
                         }
                         else if (message.IndexOf("position") != -1)
                         {
@@ -243,11 +243,11 @@ namespace Fleck.aiplay
             var role = user.GetAt(socket);
             role.EnqueueMessage(new Msg(message));
             //查redis表，有的话返回结果，没有加入引擎队列
-            if (redis.ContainsKey(message))
-            {
-                getFromList(role, message);
-            }
-            else
+//             if (redis.ContainsKey(message))
+//             {
+//                 getFromList(role, message);
+//             }
+//             else
             {
                 //将role加入引擎处理队列，如果队列中已经存在则刷新队列
                 if (!EngineQueue.Contains(role))
