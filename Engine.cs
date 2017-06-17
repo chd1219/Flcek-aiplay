@@ -104,7 +104,7 @@ namespace Fleck.aiplay
                             intDepth = Int32.Parse(sArray[2]);
                             currentRole.Send(line);
                             currentRole.GetCurrentMsg().mList.Add(line);
-                           // redis.PushItemToList(currentRole.GetCurrentMsg().message, line);
+                            redis.PushItemToList(currentRole.GetCurrentMsg().message, line);
                         }
 
                         if (line.IndexOf("bestmove") != -1)
@@ -125,6 +125,7 @@ namespace Fleck.aiplay
         
         public void resetEngine()
         {
+            isLock = false;
             KillPipeThread();
             //启动管道线程
             StartPipeThread();
@@ -173,6 +174,11 @@ namespace Fleck.aiplay
                 case "msgcount":
                     {
                         socket.Send("There are " + getMsgQueueCount() + " messages haven't deal.");
+                        break;
+                    }
+                case "activecount":
+                    {
+                        socket.Send(getActiveCount().ToString());
                         break;
                     }
                 case "dealspeed":
@@ -242,17 +248,18 @@ namespace Fleck.aiplay
             //记录每个用户的消息队列
             var role = user.GetAt(socket);
             role.EnqueueMessage(new Msg(message));
+
             //查redis表，有的话返回结果，没有加入引擎队列
-//             if (redis.ContainsKey(message))
-//             {
-//                 getFromList(role, message);
-//             }
-//             else
+            if (redis.ContainsKey(message))
+            {
+                getFromList(role, message);
+            }
+            else
             {
                 //将role加入引擎处理队列，如果队列中已经存在则刷新队列
                 if (!EngineQueue.Contains(role))
                 {
-                    EngineQueue.Enqueue(role);
+                   EngineQueue.Enqueue(role);
                 }
                 else
                 {
@@ -279,7 +286,7 @@ namespace Fleck.aiplay
                         Console.WriteLine("getFromEngine");
                         PipeWriter.Write(msg.message + "\r\n");
                         PipeWriter.Write("go depth " + Setting.level + "\r\n");
-
+                        
                         //等待计算结果
 //                         bool timeout = true;
 //                         for (int i = 0; i < 10 * Setting.thinktimeout; i++)
@@ -298,6 +305,7 @@ namespace Fleck.aiplay
 //                             PipeWriter.Write("stop\r\n");
 //                         }
                     }
+                    Thread.Sleep(100);
                 }
                 catch (System.Exception ex)
                 {

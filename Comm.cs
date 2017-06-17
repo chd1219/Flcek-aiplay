@@ -43,7 +43,18 @@ namespace Fleck.aiplay
            // return engine.EngineQueue.Count;
             return 0;
         }
-      
+        public int getActiveCount()
+        {
+            int no = 0;
+            foreach (Role r in user.allRoles)
+            {
+                if (r.isActive())
+                {
+                    no++;
+                }
+            }
+            return no;
+        }
         public int getDealspeed()
         {
             return nMsgQueuecount;
