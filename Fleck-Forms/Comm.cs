@@ -39,12 +39,6 @@ namespace Fleck.aiplay
             logPosition.WritePosition(message);            
         }
      
-        public int getMsgQueueCount()
-        {
-           // return engine.EngineQueue.Count;
-            return 0;
-        }
-
         public int getActiveCount()
         {
             int no = 0;
@@ -137,13 +131,14 @@ namespace Fleck.aiplay
             socket.Send("There are " + no + " clients online.");
         }
 
-        public void DealQueryallMessage(IWebSocketConnection socket, string message)
+        public string DealQueryallMessage(string message)
         {
-            string str = redis.QueryallFromCloud(message);
-            if (str != null)
+            string str = "";
+            if (Setting.isSupportCloudApi)
             {
-                socket.Send(str);
+                str = redis.QueryallFromCloud(message);
             }
+            return str;
         }
             
         public void getFromList(Role role, string message)

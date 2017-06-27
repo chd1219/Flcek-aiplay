@@ -23,72 +23,7 @@ namespace Fleck_Forms
 
             InitializeComponent();            
         }
-
-        private void timer1_Tick(object sender, EventArgs e)
-        {
-            if (comm != null)
-            {
-                m_online.Text = comm.getUserCount().ToString();
-
-                m_time.Text = RunTime.ToString();
-
-                DateTime currentTime = System.DateTime.Now;
-                TimeSpan span = currentTime.Subtract(RunTime);
-                m_span.Text = span.Days + "天" + span.Hours + "时" + span.Minutes + "分" + span.Seconds + "秒";
-
-                m_msg.Text = MsgCount.ToString() + " 个";
-
-                countQueue.Enqueue(MsgCount);
-                if (countQueue.Count > 60)
-                {
-                    countQueue.Dequeue();
-                }
-                m_speed.Text = (MsgCount-(int)countQueue.Peek()).ToString() + " 个/分钟";
-            }
-        }
-
-        private void InitListView()
-        {
-            #region 增加Item的標題，共有三個列
-            //1、創建標題，共三列
-            listView1.View = View.Details;
-            listView1.Columns.Add("文件名");
-            listView1.Columns.Add("大小");
-            listView1.Columns.Add("創建日期");
-            listView1.BeginUpdate();
-            #region 增加第一個Item
-            //2、定義一個ListViewItem，在View.Details模式下，有點像第一列中一個值
-            ListViewItem lvItem;
-            //3、定義ListViewSubItem，在View.Details模式下，有點像第二列中一個值
-            ListViewItem.ListViewSubItem lvSubItem;
-            //實列化一個Item，在View.Details模式下，有點像加第一行的第一個值
-            lvItem = new ListViewItem();
-            //Item的顯示的文字
-            lvItem.Text = "文件夾1";
-            //4、Item增加到ListView控件中，即增加第一行。在View.Details模式下，有點像增加了第一個項目的第一列的第一個值
-            listView1.Items.Add(lvItem);
-            //實例化SubItem
-            lvSubItem = new ListViewItem.ListViewSubItem();
-            lvSubItem.Text = "10";
-            //5、將SubItem增加到第一個Item中，在View.Details模式下，有點像增加了第一個項目的第二列的第一個值
-            lvItem.SubItems.Add(lvSubItem);
-            lvSubItem = new ListViewItem.ListViewSubItem();
-            lvSubItem.Text = "20080114";
-            //將SubItem增加到第一個Item中，在View.Details模式下，有點像增加了第一個項目的第三列的第一個值
-            lvItem.SubItems.Add(lvSubItem);
-            #endregion
-            lvItem = new ListViewItem();
-            lvItem.Text = "文件夾2";
-            lvSubItem = new ListViewItem.ListViewSubItem();
-            lvSubItem.Text = "20";
-            lvItem.SubItems.Add(lvSubItem);
-            lvSubItem = new ListViewItem.ListViewSubItem();
-            lvSubItem.Text = "20080115";
-            lvItem.SubItems.Add(lvSubItem);
-            listView1.Items.Add(lvItem);
-            #endregion
-            listView1.EndUpdate();
-        }
+        
         private void Form1_Load(object sender, EventArgs e)
         {       
             InitListView();
@@ -131,6 +66,113 @@ namespace Fleck_Forms
             });
         }
 
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+            if (comm != null)
+            {
+                m_online.Text = comm.getUserCount().ToString();               
+
+                m_msg.Text = MsgCount.ToString() + " 个";
+
+                countQueue.Enqueue(MsgCount);
+                if (countQueue.Count > 60)
+                {
+                    countQueue.Dequeue();
+                }
+                m_speed.Text = (MsgCount - (int)countQueue.Peek()).ToString() + " 个/分钟";
+
+                m_undo.Text = comm.getMsgQueueCount().ToString() + " 个";
+
+                m_time.Text = RunTime.ToString();
+
+                DateTime currentTime = System.DateTime.Now;
+                TimeSpan span = currentTime.Subtract(RunTime);
+                m_span.Text = span.Days + "天" + span.Hours + "时" + span.Minutes + "分" + span.Seconds + "秒";
+
+                //显示引擎信息
+                lock (comm.OutputEngineQueue)
+                {
+                    foreach (string q in comm.OutputEngineQueue)
+                    {
+                        string[] str = { DateTime.Now.ToLongTimeString(), q };
+                        AddListViewItem(listView3, str);
+                    }
+                    comm.OutputEngineQueue.Clear();
+                }
+               
+            }
+        }
+
+        private void InitListView()
+        {
+            listView1.GridLines = true;
+            //单选时,选择整行
+            listView1.FullRowSelect = true;
+            //显示方式
+            listView1.View = View.Details;
+            //没有足够的空间显示时,是否添加滚动条
+            listView1.Scrollable = true;
+            //是否可以选择多行
+            listView1.MultiSelect = false;
+
+            listView1.View = View.Details;
+            listView1.Columns.Add("时间", 50);
+            listView1.Columns.Add("用户", 140);
+            listView1.Columns.Add("状态", 75);
+
+            listView2.GridLines = true;
+            //单选时,选择整行
+            listView2.FullRowSelect = true;
+            //显示方式
+            listView2.View = View.Details;
+            //没有足够的空间显示时,是否添加滚动条
+            listView2.Scrollable = true;
+            //是否可以选择多行
+            listView2.MultiSelect = false;
+
+            listView2.View = View.Details;
+            listView2.Columns.Add("时间", 50);
+            listView2.Columns.Add("命令", 330);
+            listView2.Columns.Add("状态", 0);
+
+            listView3.GridLines = true;
+            //单选时,选择整行
+            listView3.FullRowSelect = true;
+            //显示方式
+            listView3.View = View.Details;
+            //没有足够的空间显示时,是否添加滚动条
+            listView3.Scrollable = true;
+            //是否可以选择多行
+            listView3.MultiSelect = false;
+
+            listView3.View = View.Details;
+            listView3.Columns.Add("时间", 50);
+            listView3.Columns.Add("命令", 410);
+        }
+
+        private void AddListViewItem(ListView listView, string[] array)
+        {
+            if (listView.Items.Count > 28)
+            {
+                listView.Items.Clear();
+            }
+
+            listView.BeginUpdate();
+            ListViewItem lvItem;
+            ListViewItem.ListViewSubItem lvSubItem;
+            lvItem = new ListViewItem();
+            lvItem.Text = array[0];
+            listView.Items.Add(lvItem);
+
+            for (int x = 1; x < array.Length; x++)
+            {
+                lvSubItem = new ListViewItem.ListViewSubItem();
+                lvSubItem.Text = array[x];
+                lvItem.SubItems.Add(lvSubItem);
+            }
+            listView.EndUpdate();
+        }
+
         Engine comm;
         DateTime RunTime;
         int MsgCount;
@@ -150,11 +192,8 @@ namespace Fleck_Forms
 
         public void AddMsgItemMethod(string message)
         {
-            if (m_msgList.Items.Count > 30)
-            {
-                m_msgList.Items.Clear();
-            }
-            m_msgList.Items.Add(DateTime.Now.ToLongTimeString() + " " + message);
+            string[] str = { DateTime.Now.ToLongTimeString(), message };
+            AddListViewItem(listView2, str);
             System.Threading.Thread.Sleep(1);
         }
 
@@ -163,15 +202,14 @@ namespace Fleck_Forms
             string address = socket.ConnectionInfo.ClientIpAddress;
             string port = socket.ConnectionInfo.ClientPort.ToString();
             string str = address + ":" + port;
-            if (m_connectionList.Items.Count > 30)
-            {
-                m_connectionList.Items.Clear();
-            }
-            m_connectionList.Items.Add(DateTime.Now.ToLongTimeString() + " " + str + " connected!");
+
+            string[] names = { DateTime.Now.ToLongTimeString(), str, "connected!" };
+            AddListViewItem(listView1,names);
 
             add(address, port);
 
         }
+
         public void add(string address, string port)
         {
             TreeNode tn;
@@ -209,11 +247,9 @@ namespace Fleck_Forms
             string address = socket.ConnectionInfo.ClientIpAddress;
             string port = socket.ConnectionInfo.ClientPort.ToString();
             string str = address + ":" + port;
-            if (m_connectionList.Items.Count > 100)
-            {
-                m_connectionList.Items.Clear();
-            }
-            m_connectionList.Items.Add(DateTime.Now.ToLongTimeString() + " "+ str + " closed!");
+            
+            string[] names = { DateTime.Now.ToLongTimeString(), str, "closed!" };
+            AddListViewItem(listView1,names);
 
             remove(address, port);            
         }
@@ -222,7 +258,6 @@ namespace Fleck_Forms
         {
             TreeNode tn;
             string str;
-            int index = 0;
             try
             {
                 for (int i = 0; i < treeView1.Nodes.Count; i++)
@@ -272,9 +307,7 @@ namespace Fleck_Forms
  
             
         }
-
-       
-
+        
         public void AddMsg(string str)
         {           
             try

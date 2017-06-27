@@ -18,9 +18,24 @@ namespace Fleck.aiplay
         Boolean isEngineRun;
         DateTime EngineRunTime;
         List<string> result;
-        public Queue<Role> EngineQueue; 
+        public Queue<Role> InputEngineQueue; 
         public Role currentRole;
         public string tmpmessage;
+        public Queue OutputEngineQueue;
+
+        public int getMsgQueueCount()
+        {
+             return InputEngineQueue.Count;
+        }
+
+        public void AddOutput(string line)
+        {
+            lock (OutputEngineQueue)
+            {
+                OutputEngineQueue.Enqueue(line);
+            }
+        }
+
         public void Start()
         {
             //启动引擎线程
@@ -30,7 +45,8 @@ namespace Fleck.aiplay
             //启动消费者线程
             StartCustomerThread();
             result = new List<string>();
-            EngineQueue = new Queue<Role>();
+            InputEngineQueue = new Queue<Role>();
+            OutputEngineQueue = new Queue();
             isLock = false;
             currentRole = null;
         }
@@ -68,6 +84,7 @@ namespace Fleck.aiplay
             catch (System.Exception ex)
             {
                 WriteInfo("[error] KillPipeThread " + ex.Message);
+                AddOutput("[error] KillPipeThread " + ex.Message);
             }
             Thread.Sleep(100);
         }
@@ -89,10 +106,13 @@ namespace Fleck.aiplay
                 //每次读取一行
                 line = reader.ReadLine();
                 Console.WriteLine(line);
-                
+
+                AddOutput(line);
+
                 while (isEngineRun)
                 {
                     line = reader.ReadLine();
+
                     if (line != null)
                     {
                         string[] sArray = line.Split(' ');
@@ -106,12 +126,14 @@ namespace Fleck.aiplay
                             currentRole.Send(line);
                             currentRole.GetCurrentMsg().mList.Add(line);
                             redis.PushItemToList(currentRole.GetCurrentMsg().message, line);
-                           // redis.PushItemToList(tmpmessage, line);
+                            //redis.PushItemToList(tmpmessage, line);
+                            AddOutput(line);
                             
                         }
 
                         if (line.IndexOf("bestmove") != -1)
                         {
+                            AddOutput(line);
                             Console.WriteLine("depth " + intDepth);
                             currentRole.Done(line);                            
                             isLock = false;
@@ -123,6 +145,9 @@ namespace Fleck.aiplay
             catch (System.Exception ex)
             {
                 WriteInfo("[error] PipeThread " + ex.Message);
+                AddOutput("[error] PipeThread " + ex.Message);
+                resetEngine();
+                isLock = false;
             }
         }
         
@@ -153,13 +178,11 @@ namespace Fleck.aiplay
         {
             var role = new Role(socket);
             user.Add(role);
-            WriteInfo(role.GetAddr() + " Connected! They are " + user.getSize() + " Clients online");
         }
 
         public void OnClose(IWebSocketConnection socket)
         {
             var role = user.GetAt(socket);
-            WriteInfo(role.GetAddr() + " Close!");
             user.Remove(socket);
         }
 
@@ -229,7 +252,9 @@ namespace Fleck.aiplay
                         //过滤命令
                         if (message.IndexOf("queryall") != -1)
                         {
-                          //  DealQueryallMessage(socket, message);
+                            string str = DealQueryallMessage(message);
+                            AddOutput(str);
+                            socket.Send(str);
                         }
                         else if (message.IndexOf("position") != -1)
                         {
@@ -254,7 +279,7 @@ namespace Fleck.aiplay
             Msg msg = new Msg(message);
 
             role.EnqueueMessage(msg);
-            EngineQueue.Enqueue(role);
+            InputEngineQueue.Enqueue(role);
         }
 
         public void CustomerThread1()
@@ -302,24 +327,26 @@ namespace Fleck.aiplay
             {
                 try
                 {               
-                    if (EngineQueue.Count > 0 && PipeWriter != null && isLock == false)
+                    if (InputEngineQueue.Count > 0 && PipeWriter != null && isLock == false)
                     { 
-                        Console.WriteLine("There are " + EngineQueue.Count + " messages to deal");
+                        Console.WriteLine("There are " + InputEngineQueue.Count + " messages to deal");
                         //同步锁
                         isLock = true;
-                        currentRole = EngineQueue.Dequeue();
+                        currentRole = InputEngineQueue.Dequeue();
 
                         Msg msg = currentRole.GetCurrentMsg();
 
                         if (redis.ContainsKey(msg.message))
                         {
                             Console.WriteLine("getFromList");
+                            OutputEngineQueue.Enqueue("getFromList");
                             getFromList(currentRole, msg.message);
                             isLock = false;
                         }
                         else
                         {
                             Console.WriteLine("getFromEngine");
+                            OutputEngineQueue.Enqueue("getFromEngine");
                             PipeWriter.Write(msg.message + "\r\n");
                             PipeWriter.Write("go depth " + Setting.level + "\r\n");
                             Thread.Sleep(50);
@@ -330,6 +357,7 @@ namespace Fleck.aiplay
                 catch (System.Exception ex)
                 {
                     WriteInfo("[error] GetFromEngine " + ex.Message);
+                    AddOutput("[error] GetFromEngine " + ex.Message);
                     resetEngine();
                     isLock = false;
                 }

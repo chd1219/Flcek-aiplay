@@ -149,10 +149,6 @@ namespace Fleck.aiplay
         public string QueryallFromCloud(string message)
         {
             string board = message.Substring(9, message.Length - 9);
-            if (!Setting.isSupportCloudApi)
-            {
-                return "";
-            }
             string serverResult = "";
             try
             {
