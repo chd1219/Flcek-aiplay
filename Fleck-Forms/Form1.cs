@@ -28,9 +28,8 @@ namespace Fleck_Forms
         {       
             InitListView();
 
-            comm = new Engine();
+            comm = new Engine();            
             comm.Start();
-
             countQueue = new Queue();
             MsgCount = 0;
             lastMsgCount = 0;
@@ -59,11 +58,26 @@ namespace Fleck_Forms
                     comm.OnClose(socket);
                 };
                 socket.OnMessage = message =>
-                {
-                    AddMsg(message);
+                {                                       
                     comm.OnMessage(socket, message);
+                    Role role = comm.GetRoleAt(socket);
+                    string[] names = { DateTime.Now.ToLongTimeString(), role.GetAddr(), role.GetMsgCount().ToString(),message };
+                    AddMsg(names); 
                 };
             });
+        }
+
+        private void AddMsg(string [] role)
+        {
+            try
+            {
+                MsgCount++;
+                this.Invoke(this.addMsgDelegate, new Object[] { role });
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
         }
 
         private void timer1_Tick(object sender, EventArgs e)
@@ -92,12 +106,13 @@ namespace Fleck_Forms
                 //显示引擎信息
                 lock (comm.OutputEngineQueue)
                 {
-                    foreach (string q in comm.OutputEngineQueue)
+                    int num = comm.OutputEngineQueue.Count;
+                    for (int i = 0; i < num; i++ )
                     {
+                        string q = (string)comm.OutputEngineQueue.Dequeue();
                         string[] str = { DateTime.Now.ToLongTimeString(), q };
                         AddListViewItem(listView3, str);
                     }
-                    comm.OutputEngineQueue.Clear();
                 }
                
             }
@@ -116,9 +131,9 @@ namespace Fleck_Forms
             listView1.MultiSelect = false;
 
             listView1.View = View.Details;
-            listView1.Columns.Add("时间", 50);
-            listView1.Columns.Add("用户", 140);
-            listView1.Columns.Add("状态", 75);
+            listView1.Columns.Add("时间", 60);
+            listView1.Columns.Add("用户", 132);
+            listView1.Columns.Add("状态", 73);
 
             listView2.GridLines = true;
             //单选时,选择整行
@@ -131,9 +146,10 @@ namespace Fleck_Forms
             listView2.MultiSelect = false;
 
             listView2.View = View.Details;
-            listView2.Columns.Add("时间", 50);
-            listView2.Columns.Add("命令", 330);
-            listView2.Columns.Add("状态", 0);
+            listView2.Columns.Add("时间", 60);
+            listView2.Columns.Add("用户", 132);
+            listView2.Columns.Add("序号", 40);
+            listView2.Columns.Add("命令", 150);
 
             listView3.GridLines = true;
             //单选时,选择整行
@@ -146,8 +162,8 @@ namespace Fleck_Forms
             listView3.MultiSelect = false;
 
             listView3.View = View.Details;
-            listView3.Columns.Add("时间", 50);
-            listView3.Columns.Add("命令", 410);
+            listView3.Columns.Add("时间", 60);
+            listView3.Columns.Add("命令", 400);
         }
 
         private void AddListViewItem(ListView listView, string[] array)
@@ -180,20 +196,20 @@ namespace Fleck_Forms
         int nSpeed;
         int nSpan;
         Queue countQueue;
+
         //安全调用控件
         public delegate void AddConnectionItem(IWebSocketConnection socket);
         public AddConnectionItem addListDelegate;
 
-        public delegate void AddMsgItem(string message);
+        public delegate void AddMsgItem(string [] message);
         public AddMsgItem addMsgDelegate;
 
         public delegate void RemoveConnectionListItem(IWebSocketConnection socket);
         public RemoveConnectionListItem removeListDelegate;
 
-        public void AddMsgItemMethod(string message)
+        public void AddMsgItemMethod(string [] message)
         {
-            string[] str = { DateTime.Now.ToLongTimeString(), message };
-            AddListViewItem(listView2, str);
+            AddListViewItem(listView2, message);
             System.Threading.Thread.Sleep(1);
         }
 
@@ -353,6 +369,33 @@ namespace Fleck_Forms
         private void btn_closeall_Click(object sender, EventArgs e)
         {
             treeView1.CollapseAll();
+        }
+
+        private void btn_reset_Click(object sender, EventArgs e)
+        {
+            comm.resetEngine();
+        }
+
+        private void btn_clear_Click(object sender, EventArgs e)
+        {
+            listView1.Items.Clear();
+            listView2.Items.Clear();
+            listView3.Items.Clear();
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            comm.stopEngine();
+        }
+
+        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        {
+            comm.bJson = checkBox1.Checked;
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            //comm.SQLite_Test();
         }
 
     }

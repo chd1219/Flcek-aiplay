@@ -12,6 +12,7 @@ using ServiceStack.Redis;
 using RedisStudy;
 using System.Timers;
 using Newtonsoft.Json;
+using System.Data.SQLite;
 
 namespace Fleck.aiplay
 {    
@@ -212,13 +213,52 @@ namespace Fleck.aiplay
             nMsgQueuecount = 0;        
         }
 
-        public Msg ParseJson(string jsonStr)
-        {
-            Msg msg;
-            JavaScriptObject jsonObj = JavaScriptConvert.DeserializeObject<JavaScriptObject>(jsonStr);
-            msg = new Msg(jsonObj["id"].ToString(), jsonObj["fen"].ToString());
-            return msg;
+        public Msg Json2Msg(string jsonStr)
+        {           
+            try
+            {
+                Msg msg;
+                JavaScriptObject jsonObj = JavaScriptConvert.DeserializeObject<JavaScriptObject>(jsonStr);
+                msg = new Msg(jsonObj["id"].ToString(), jsonObj["fen"].ToString());
+                return msg;
+            }
+            catch (System.Exception ex)
+            {
+                return null;
+            }           
         }
+
+        public void SQLite_Test()
+        {
+            SQLiteConnection conn = null;
+            string strSQLiteDB = Environment.CurrentDirectory;
+            strSQLiteDB = strSQLiteDB.Substring(0, strSQLiteDB.LastIndexOf("\\"));
+            strSQLiteDB = strSQLiteDB.Substring(0, strSQLiteDB.LastIndexOf("\\"));// 这里获取到了Bin目录  
+
+            try
+            {
+                string dbPath = "Data Source=" + strSQLiteDB + "\\test.db";
+                conn = new SQLiteConnection(dbPath);//创建数据库实例，指定文件位置    
+                conn.Open();                        //打开数据库，若文件不存在会自动创建    
+
+                string sql = "CREATE TABLE IF NOT EXISTS phone(ID integer, brand varchar(20), Memery varchar(50));";//建表语句    
+                SQLiteCommand cmdCreateTable = new SQLiteCommand(sql, conn);
+                cmdCreateTable.ExecuteNonQuery();//如果表不存在，创建数据表    
+
+                SQLiteCommand cmdInsert = new SQLiteCommand(conn);
+                cmdInsert.CommandText = "INSERT INTO phone(brand, Memery) VALUES('samsung', '三星')";//插入几条数据    
+                cmdInsert.ExecuteNonQuery();
+                cmdInsert.CommandText = "INSERT INTO phone(brand, Memery) VALUES('samsung', '三星')";//插入几条数据    
+                cmdInsert.ExecuteNonQuery();
+                cmdInsert.CommandText = "INSERT INTO phone(brand, Memery) VALUES('samsung', '三星')";//插入几条数据    
+                cmdInsert.ExecuteNonQuery();
+
+                conn.Close();
+            }
+            catch (Exception ex)
+            {
+            }
+        }  
 
         public void ReadFile(string path)
         {

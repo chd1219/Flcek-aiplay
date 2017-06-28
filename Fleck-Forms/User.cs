@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Collections;
 
 namespace Fleck.aiplay
 {
@@ -9,6 +10,8 @@ namespace Fleck.aiplay
     {
         public IWebSocketConnection connection { get; set; }
         public Queue<Msg> MsgQueue { get; set; }
+        public Queue QueryallQueue { get; set; }
+        public Queue<Msg> FinishQueue { get; set; }
         public Msg currentMsg { get; set; }
         public DateTime createTime { get; set; }
         public DateTime lastdealTime { get; set; }
@@ -16,6 +19,8 @@ namespace Fleck.aiplay
         {
             connection = null;
             MsgQueue = new Queue<Msg>();
+            QueryallQueue = new Queue();
+            FinishQueue = new Queue<Msg>();
             createTime = System.DateTime.Now;
             lastdealTime = System.DateTime.Now;
         }
@@ -23,14 +28,21 @@ namespace Fleck.aiplay
         {
             this.connection = connection;
             MsgQueue = new Queue<Msg>();
+            FinishQueue = new Queue<Msg>();
+            QueryallQueue = new Queue();
             createTime = System.DateTime.Now;
             lastdealTime = System.DateTime.Now;
         }
-        public void EnqueueMessage(Msg msg)
+        public void EnqueuePositionMessage(Msg msg)
         {
             MsgQueue.Enqueue(msg);
-            currentMsg = msg;
         }
+
+        public void EnqueueQueryMessage(string msg)
+        {
+            QueryallQueue.Enqueue(msg);
+        }
+
         public override string ToString()
         {
             return connection.ConnectionInfo.ClientIpAddress + ":" + connection.ConnectionInfo.ClientPort.ToString() + " createTime:" + createTime.ToString() + " lastdealTime:" + lastdealTime.ToString(); ;
@@ -42,6 +54,8 @@ namespace Fleck.aiplay
             currentMsg.retval = line;
             currentMsg.isreturn = true;
             lastdealTime = currentMsg.dealTime;
+            MsgQueue.Dequeue();
+            FinishQueue.Enqueue(currentMsg);
         }
 
         public string GetAddr()
@@ -51,7 +65,13 @@ namespace Fleck.aiplay
 
         public Msg GetCurrentMsg()
         {
+            currentMsg = MsgQueue.Peek();
             return currentMsg;
+        }
+
+        public int GetMsgCount()
+        {
+            return MsgQueue.Count + FinishQueue.Count + QueryallQueue.Count;
         }
 
         public void Send(string line)
@@ -92,6 +112,7 @@ namespace Fleck.aiplay
         public string retval { get; set; }
         public DateTime createTime { get; set; }
         public DateTime dealTime { get; set; }
+        public int dealCount { get; set; }
         public Msg()
         {
             id = "";
@@ -101,6 +122,7 @@ namespace Fleck.aiplay
             isreturn = false;
             createTime = System.DateTime.Now;
             dealTime = System.DateTime.Now;
+            dealCount = 0;
         }
         public Msg(string message)
         {
@@ -111,6 +133,7 @@ namespace Fleck.aiplay
             isreturn = false;
             createTime = System.DateTime.Now;
             dealTime = System.DateTime.Now;
+            dealCount = 0;
         }
         public Msg(string id, string message)
         {
@@ -121,6 +144,15 @@ namespace Fleck.aiplay
             isreturn = false;
             createTime = System.DateTime.Now;
             dealTime = System.DateTime.Now;
+            dealCount = 0;
+        }
+        public bool CheckDate()
+        {
+            if (dealCount > 5)
+            {
+                return false;
+            }
+            return true;
         }
     }
 

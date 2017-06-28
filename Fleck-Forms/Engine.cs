@@ -13,23 +13,36 @@ namespace Fleck.aiplay
     class Engine : Comm
     {
         private static StreamWriter PipeWriter { get; set; }
-        private static bool isLock { get; set; }
+        private static bool bLock { get; set; }
         Process pProcess;
-        Boolean isEngineRun;
+        Boolean bEngineRun;
         DateTime EngineRunTime;
         List<string> result;
         public Queue<Role> InputEngineQueue; 
         public Role currentRole;
         public string tmpmessage;
         public Queue OutputEngineQueue;
-
+        public bool bJson { get; set; }
         public int getMsgQueueCount()
         {
              return InputEngineQueue.Count;
         }
 
-        public void AddOutput(string line)
+        public bool CheckInputEngineQueue()
         {
+            if (InputEngineQueue.Count > 0)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public void AddOutput(string line, bool save = false)
+        {
+            if (save)
+            {
+                WriteInfo(line);
+            }
             lock (OutputEngineQueue)
             {
                 OutputEngineQueue.Enqueue(line);
@@ -47,8 +60,9 @@ namespace Fleck.aiplay
             result = new List<string>();
             InputEngineQueue = new Queue<Role>();
             OutputEngineQueue = new Queue();
-            isLock = false;
+            bLock = false;
             currentRole = null;
+            bJson = false;
         }
 
         public void StartPipeThread()
@@ -74,24 +88,25 @@ namespace Fleck.aiplay
 
         private void KillPipeThread()
         {
-            isEngineRun = false;
+            bEngineRun = false;
             try
             {
-                pProcess.Kill();
-                pProcess.Close();
+                if (pProcess != null)
+                {
+                    pProcess.Kill();
+                    pProcess.Close();
+                }                
                 PipeWriter = null;
             }
             catch (System.Exception ex)
-            {
-                WriteInfo("[error] KillPipeThread " + ex.Message);
-                AddOutput("[error] KillPipeThread " + ex.Message);
+            {                
+                AddOutput("[error] KillPipeThread " + ex.Message, true);
             }
             Thread.Sleep(100);
         }
 
         public void PipeThread()
-        {
-            isEngineRun = true;
+        {            
             EngineRunTime = System.DateTime.Now;
             int intDepth = 0;
             string line = "";
@@ -105,11 +120,12 @@ namespace Fleck.aiplay
                 PipeWriter = pProcess.StandardInput;
                 //每次读取一行
                 line = reader.ReadLine();
-                Console.WriteLine(line);
-
+                AddOutput(line); 
+                line = reader.ReadLine();
                 AddOutput(line);
+                bEngineRun = true;
 
-                while (isEngineRun)
+                while (bEngineRun)
                 {
                     line = reader.ReadLine();
 
@@ -126,17 +142,14 @@ namespace Fleck.aiplay
                             currentRole.Send(line);
                             currentRole.GetCurrentMsg().mList.Add(line);
                             redis.PushItemToList(currentRole.GetCurrentMsg().message, line);
-                            //redis.PushItemToList(tmpmessage, line);
-                            AddOutput(line);
-                            
                         }
 
                         if (line.IndexOf("bestmove") != -1)
                         {
-                            AddOutput(line);
-                            Console.WriteLine("depth " + intDepth);
-                            currentRole.Done(line);                            
-                            isLock = false;
+                            AddOutput("depth " + intDepth.ToString() + " " + line);
+                            currentRole.Done(line);
+                            InputEngineQueue.Dequeue();
+                            bLock = false;
                         }
                         Thread.Sleep(10);
                     }
@@ -144,16 +157,14 @@ namespace Fleck.aiplay
             }
             catch (System.Exception ex)
             {
-                WriteInfo("[error] PipeThread " + ex.Message);
-                AddOutput("[error] PipeThread " + ex.Message);
-                resetEngine();
-                isLock = false;
+                AddOutput("[error] PipeThread " + ex.Message, true);
+                resetEngine();                
             }
         }
         
         public void resetEngine()
         {
-            isLock = false;
+            bLock = false;
             KillPipeThread();
             //启动管道线程
             StartPipeThread();
@@ -173,7 +184,12 @@ namespace Fleck.aiplay
             customerThread.IsBackground = true;
             customerThread.Start();
         }
-       
+
+        public Role GetRoleAt(IWebSocketConnection socket)
+        {
+            return user.GetAt(socket);
+        }
+
         public void OnOpen(IWebSocketConnection socket)
         {
             var role = new Role(socket);
@@ -255,16 +271,17 @@ namespace Fleck.aiplay
                             string str = DealQueryallMessage(message);
                             AddOutput(str);
                             socket.Send(str);
+                            var role = user.GetAt(socket);
+
+                            role.EnqueueQueryMessage(message);                               
+
                         }
                         else if (message.IndexOf("position") != -1)
                         {
                             DealPositionMessage(socket, message);
                             WritePosition(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " " + message);
                         }
-                        else
-                        {
-                            Console.WriteLine(message);
-                        }
+
                         break;
                     }
             }
@@ -275,93 +292,72 @@ namespace Fleck.aiplay
         {
             //记录每个用户的消息队列
             var role = user.GetAt(socket);
-//            Msg msg = ParseJson(message);
-            Msg msg = new Msg(message);
-
-            role.EnqueueMessage(msg);
-            InputEngineQueue.Enqueue(role);
-        }
-
-        public void CustomerThread1()
-        {
-            Thread.Sleep(3000);
-            StreamReader sr = new StreamReader("C:\\MyProject\\Fleck-aiplay\\bin\\Release\\log\\Position.log", Encoding.Default);
-            String line;
-            while (true)
+            Msg msg;
+            if (bJson)
             {
-                try
-                {
-                    line = sr.ReadLine();
-                    if (PipeWriter != null && isLock == false && line != null)
-                    {
-                        string[] position = Regex.Split(line, "position");
-                        line = "position" + position[1];
-                        tmpmessage = line;
-                        if (redis.ContainsKey(tmpmessage))
-                        {
-                            getFromList(tmpmessage);
-                        }
-                        else
-                        {
-                            Console.Write("1");
-                            PipeWriter.Write(line.ToString() + "\r\n");
-                            PipeWriter.Write("go depth " + Setting.level + "\r\n");
-                            //同步锁
-                            isLock = true;
-                            Thread.Sleep(100);
-                        }
-                    }
-                }
-                catch (System.Exception ex)
-                {
-                    WriteInfo("[error] GetFromEngine " + ex.Message);
-                    resetEngine();
-                    isLock = false;
-                }
+                msg = Json2Msg(message);
             }
+            else
+            {
+                msg = new Msg(message);
+            }
+            if (msg != null)
+            {
+                role.EnqueuePositionMessage(msg);
+                InputEngineQueue.Enqueue(role);
+            }          
         }
-
+        
         public void CustomerThread()
         {
+            Msg msg;
             while (true)
-            {
+            {                
                 try
-                {               
-                    if (InputEngineQueue.Count > 0 && PipeWriter != null && isLock == false)
+                {
+                    if (CheckInputEngineQueue() && bEngineRun && !bLock)
                     { 
-                        Console.WriteLine("There are " + InputEngineQueue.Count + " messages to deal");
                         //同步锁
-                        isLock = true;
-                        currentRole = InputEngineQueue.Dequeue();
-
-                        Msg msg = currentRole.GetCurrentMsg();
-
-                        if (redis.ContainsKey(msg.message))
-                        {
-                            Console.WriteLine("getFromList");
-                            OutputEngineQueue.Enqueue("getFromList");
-                            getFromList(currentRole, msg.message);
-                            isLock = false;
-                        }
-                        else
-                        {
-                            Console.WriteLine("getFromEngine");
-                            OutputEngineQueue.Enqueue("getFromEngine");
-                            PipeWriter.Write(msg.message + "\r\n");
-                            PipeWriter.Write("go depth " + Setting.level + "\r\n");
-                            Thread.Sleep(50);
-                        }
+                        bLock = true;
+                        currentRole = InputEngineQueue.Peek();
+                        msg = currentRole.GetCurrentMsg();
+                        
+                        EngineDeal(msg.message);
+                       
                     }
                     Thread.Sleep(10);
                 }
                 catch (System.Exception ex)
-                {
-                    WriteInfo("[error] GetFromEngine " + ex.Message);
-                    AddOutput("[error] GetFromEngine " + ex.Message);
+                {                    
+                    AddOutput("[error] GetFromEngine " + ex.Message, true);
                     resetEngine();
-                    isLock = false;
                 }
             }
-        }    
+        }
+
+        public void EngineDeal(string message)
+        {
+            if (redis.ContainsKey(message))
+            {
+                OutputEngineQueue.Enqueue("getFromList");
+                getFromList(currentRole, message);
+                InputEngineQueue.Dequeue();
+                bLock = false;
+            }
+            else
+            {
+                OutputEngineQueue.Enqueue("getFromEngine");
+                PipeWriter.Write(message + "\r\n");
+                PipeWriter.Write("go depth " + Setting.level + "\r\n");
+                Thread.Sleep(50);
+            }
+        }
+
+        public void stopEngine()
+        {
+            bLock = false;
+            KillPipeThread();
+            AddOutput("引擎停止！");
+        }
     }
 }

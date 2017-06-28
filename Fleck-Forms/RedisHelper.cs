@@ -159,17 +159,17 @@ namespace Fleck.aiplay
                     string postData = "";
                     serverResult = HttpPostConnectToServer(serverUrl, postData);
                     if (serverResult != null)
-                    {
-                        setToRedis("Queryall:" + board, serverResult);
+                    {                        
                         serverResult = serverResult.Replace("move:", "");//替换为空
                         serverResult = serverResult.Replace("score:", "");//替换为空
                         serverResult = serverResult.Replace("rank:", "");//替换为空
                         serverResult = serverResult.Replace("note:", "");//替换为空
-                        serverResult = "Queryall" + serverResult;
+                        serverResult = "Queryall:" + serverResult;
+                        setToRedis("Queryall:" + board, serverResult);
                     }
                     else
                     {
-                        serverResult = "";
+                        serverResult = "Queryall:null";
                     }
                 }
             }
