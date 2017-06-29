@@ -10,6 +10,9 @@ using Fleck.aiplay;
 using Fleck;
 using System.Threading;
 using System.Collections;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Management;  
 
 namespace Fleck_Forms
 {
@@ -36,12 +39,7 @@ namespace Fleck_Forms
             nSpeed = 0;
             nSpan = 0;
             RunTime = System.DateTime.Now;
-            m_time.Text = RunTime.ToString();
-
-            DateTime currentTime = System.DateTime.Now;
-            TimeSpan span = currentTime.Subtract(RunTime);
-            m_span.Text = span.Days + "天" + span.Hours + "时" + span.Minutes + "分" + span.Seconds + "秒";
-
+  
             FleckLog.Level = LogLevel.Info;
             var server = new WebSocketServer("ws://0.0.0.0:" + Setting.port);
 
@@ -84,24 +82,30 @@ namespace Fleck_Forms
         {
             if (comm != null)
             {
-                m_online.Text = comm.getUserCount().ToString();               
+                string m_online = comm.getUserCount().ToString();
 
-                m_msg.Text = MsgCount.ToString() + " 个";
+                string m_msg = MsgCount.ToString() + " 个";
 
                 countQueue.Enqueue(MsgCount);
                 if (countQueue.Count > 60)
                 {
                     countQueue.Dequeue();
                 }
-                m_speed.Text = (MsgCount - (int)countQueue.Peek()).ToString() + " 个/分钟";
+                string m_speed = (MsgCount - (int)countQueue.Peek()).ToString() + " 个/分钟";
 
-                m_undo.Text = comm.getMsgQueueCount().ToString() + " 个";
+                string m_undo = comm.getMsgQueueCount().ToString() + " 个";
 
-                m_time.Text = RunTime.ToString();
+                string m_time = RunTime.ToString();
 
                 DateTime currentTime = System.DateTime.Now;
                 TimeSpan span = currentTime.Subtract(RunTime);
-                m_span.Text = span.Days + "天" + span.Hours + "时" + span.Minutes + "分" + span.Seconds + "秒";
+                string m_span = span.Days + "天" + span.Hours + "时" + span.Minutes + "分" + span.Seconds + "秒";
+
+                string m_CPU = comm.getCurrentCpuUsage();
+                string m_Memory = comm.getAvailableRAM();
+
+                string[] names = { DateTime.Now.ToLongTimeString(),m_online, m_msg, m_speed, m_undo, m_CPU, m_Memory, m_time, m_span };
+                AddListViewItem(listView4, names, 0);
 
                 //显示引擎信息
                 lock (comm.OutputEngineQueue)
@@ -113,8 +117,7 @@ namespace Fleck_Forms
                         string[] str = { DateTime.Now.ToLongTimeString(), q };
                         AddListViewItem(listView3, str);
                     }
-                }
-               
+                }               
             }
         }
 
@@ -164,11 +167,32 @@ namespace Fleck_Forms
             listView3.View = View.Details;
             listView3.Columns.Add("时间", 60);
             listView3.Columns.Add("命令", 400);
+
+            listView4.GridLines = true;
+            //单选时,选择整行
+            listView4.FullRowSelect = true;
+            //显示方式
+            listView4.View = View.Details;
+            //没有足够的空间显示时,是否添加滚动条
+            listView4.Scrollable = true;
+            //是否可以选择多行
+            listView4.MultiSelect = false;
+
+            listView4.View = View.Details;
+            listView4.Columns.Add("  时间", 60, HorizontalAlignment.Center);
+            listView4.Columns.Add("在线用户", 100, HorizontalAlignment.Center);
+            listView4.Columns.Add("接受请求", 100, HorizontalAlignment.Center);
+            listView4.Columns.Add("处理速度", 100, HorizontalAlignment.Center);
+            listView4.Columns.Add("未处理", 100, HorizontalAlignment.Center);
+            listView4.Columns.Add("CPU使用", 100, HorizontalAlignment.Center);
+            listView4.Columns.Add("剩余内存", 100, HorizontalAlignment.Center);
+            listView4.Columns.Add("启动时间", 200, HorizontalAlignment.Center);
+            listView4.Columns.Add("运行时间", 100, HorizontalAlignment.Center);
         }
 
-        private void AddListViewItem(ListView listView, string[] array)
+        private void AddListViewItem(ListView listView, string[] array,int showLines = 28)
         {
-            if (listView.Items.Count > 28)
+            if (listView.Items.Count > showLines)
             {
                 listView.Items.Clear();
             }
@@ -381,6 +405,7 @@ namespace Fleck_Forms
             listView1.Items.Clear();
             listView2.Items.Clear();
             listView3.Items.Clear();
+            listView4.Items.Clear();
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -397,6 +422,6 @@ namespace Fleck_Forms
         {
             //comm.SQLite_Test();
         }
-
+        
     }
 }

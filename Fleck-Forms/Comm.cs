@@ -100,6 +100,14 @@ namespace Fleck.aiplay
 
         public void Init()
         {
+            cpuCounter = new PerformanceCounter();
+
+            cpuCounter.CategoryName = "Processor";
+            cpuCounter.CounterName = "% Processor Time";
+            cpuCounter.InstanceName = "_Total";
+
+            ramCounter = new PerformanceCounter("Memory", "Available MBytes");
+
             setting = new Setting();
             log = new Log();
             logPosition = new Log("Position");
@@ -259,6 +267,19 @@ namespace Fleck.aiplay
             {
             }
         }  
+
+        PerformanceCounter cpuCounter;
+        PerformanceCounter ramCounter;
+
+        public string getCurrentCpuUsage()
+        {
+            return (int)cpuCounter.NextValue() + "%";
+        }
+
+        public string getAvailableRAM()
+        {
+            return ramCounter.NextValue()/1024 + " GB";
+        } 
 
         public void ReadFile(string path)
         {

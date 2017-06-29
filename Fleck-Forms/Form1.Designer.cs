@@ -33,23 +33,11 @@
             this.treeView1 = new System.Windows.Forms.TreeView();
             this.btn_expend = new System.Windows.Forms.Button();
             this.btn_closeall = new System.Windows.Forms.Button();
-            this.label1 = new System.Windows.Forms.Label();
-            this.m_online = new System.Windows.Forms.Label();
-            this.label2 = new System.Windows.Forms.Label();
-            this.m_time = new System.Windows.Forms.Label();
-            this.label4 = new System.Windows.Forms.Label();
-            this.m_span = new System.Windows.Forms.Label();
-            this.label3 = new System.Windows.Forms.Label();
-            this.m_msg = new System.Windows.Forms.Label();
             this.label5 = new System.Windows.Forms.Label();
             this.label6 = new System.Windows.Forms.Label();
             this.label7 = new System.Windows.Forms.Label();
-            this.m_speed = new System.Windows.Forms.Label();
-            this.label9 = new System.Windows.Forms.Label();
             this.listView1 = new System.Windows.Forms.ListView();
             this.listView2 = new System.Windows.Forms.ListView();
-            this.m_undo = new System.Windows.Forms.Label();
-            this.label10 = new System.Windows.Forms.Label();
             this.listView3 = new System.Windows.Forms.ListView();
             this.label8 = new System.Windows.Forms.Label();
             this.btn_reset = new System.Windows.Forms.Button();
@@ -57,6 +45,7 @@
             this.button1 = new System.Windows.Forms.Button();
             this.checkBox1 = new System.Windows.Forms.CheckBox();
             this.button2 = new System.Windows.Forms.Button();
+            this.listView4 = new System.Windows.Forms.ListView();
             this.SuspendLayout();
             // 
             // timer1
@@ -92,78 +81,6 @@
             this.btn_closeall.UseVisualStyleBackColor = true;
             this.btn_closeall.Click += new System.EventHandler(this.btn_closeall_Click);
             // 
-            // label1
-            // 
-            this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(389, 555);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(65, 12);
-            this.label1.TabIndex = 4;
-            this.label1.Text = "在线用户：";
-            // 
-            // m_online
-            // 
-            this.m_online.AutoSize = true;
-            this.m_online.Location = new System.Drawing.Point(458, 555);
-            this.m_online.Name = "m_online";
-            this.m_online.Size = new System.Drawing.Size(41, 12);
-            this.m_online.TabIndex = 5;
-            this.m_online.Text = "label2";
-            // 
-            // label2
-            // 
-            this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(975, 555);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(65, 12);
-            this.label2.TabIndex = 6;
-            this.label2.Text = "启动时间：";
-            // 
-            // m_time
-            // 
-            this.m_time.AutoSize = true;
-            this.m_time.Location = new System.Drawing.Point(1044, 555);
-            this.m_time.Name = "m_time";
-            this.m_time.Size = new System.Drawing.Size(41, 12);
-            this.m_time.TabIndex = 6;
-            this.m_time.Text = "label2";
-            // 
-            // label4
-            // 
-            this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(1167, 555);
-            this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(65, 12);
-            this.label4.TabIndex = 6;
-            this.label4.Text = "运行时间：";
-            // 
-            // m_span
-            // 
-            this.m_span.AutoSize = true;
-            this.m_span.Location = new System.Drawing.Point(1232, 555);
-            this.m_span.Name = "m_span";
-            this.m_span.Size = new System.Drawing.Size(41, 12);
-            this.m_span.TabIndex = 6;
-            this.m_span.Text = "label2";
-            // 
-            // label3
-            // 
-            this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(542, 555);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(65, 12);
-            this.label3.TabIndex = 4;
-            this.label3.Text = "接收请求：";
-            // 
-            // m_msg
-            // 
-            this.m_msg.AutoSize = true;
-            this.m_msg.Location = new System.Drawing.Point(610, 555);
-            this.m_msg.Name = "m_msg";
-            this.m_msg.Size = new System.Drawing.Size(41, 12);
-            this.m_msg.TabIndex = 5;
-            this.m_msg.Text = "label2";
-            // 
             // label5
             // 
             this.label5.AutoSize = true;
@@ -191,24 +108,6 @@
             this.label7.TabIndex = 7;
             this.label7.Text = "输入：";
             // 
-            // m_speed
-            // 
-            this.m_speed.AutoSize = true;
-            this.m_speed.Location = new System.Drawing.Point(746, 555);
-            this.m_speed.Name = "m_speed";
-            this.m_speed.Size = new System.Drawing.Size(41, 12);
-            this.m_speed.TabIndex = 9;
-            this.m_speed.Text = "label2";
-            // 
-            // label9
-            // 
-            this.label9.AutoSize = true;
-            this.label9.Location = new System.Drawing.Point(679, 555);
-            this.label9.Name = "label9";
-            this.label9.Size = new System.Drawing.Size(65, 12);
-            this.label9.TabIndex = 8;
-            this.label9.Text = "处理速度：";
-            // 
             // listView1
             // 
             this.listView1.Location = new System.Drawing.Point(182, 36);
@@ -224,24 +123,6 @@
             this.listView2.Size = new System.Drawing.Size(387, 498);
             this.listView2.TabIndex = 11;
             this.listView2.UseCompatibleStateImageBehavior = false;
-            // 
-            // m_undo
-            // 
-            this.m_undo.AutoSize = true;
-            this.m_undo.Location = new System.Drawing.Point(885, 555);
-            this.m_undo.Name = "m_undo";
-            this.m_undo.Size = new System.Drawing.Size(41, 12);
-            this.m_undo.TabIndex = 13;
-            this.m_undo.Text = "label2";
-            // 
-            // label10
-            // 
-            this.label10.AutoSize = true;
-            this.label10.Location = new System.Drawing.Point(833, 555);
-            this.label10.Name = "label10";
-            this.label10.Size = new System.Drawing.Size(53, 12);
-            this.label10.TabIndex = 12;
-            this.label10.Text = "未处理：";
             // 
             // listView3
             // 
@@ -311,35 +192,32 @@
             this.button2.UseVisualStyleBackColor = true;
             this.button2.Click += new System.EventHandler(this.button2_Click);
             // 
+            // listView4
+            // 
+            this.listView4.Location = new System.Drawing.Point(359, 540);
+            this.listView4.Name = "listView4";
+            this.listView4.Size = new System.Drawing.Size(965, 37);
+            this.listView4.TabIndex = 22;
+            this.listView4.UseCompatibleStateImageBehavior = false;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1328, 580);
+            this.Controls.Add(this.listView4);
             this.Controls.Add(this.button2);
             this.Controls.Add(this.checkBox1);
             this.Controls.Add(this.button1);
             this.Controls.Add(this.btn_clear);
             this.Controls.Add(this.btn_reset);
             this.Controls.Add(this.listView3);
-            this.Controls.Add(this.m_undo);
-            this.Controls.Add(this.label10);
             this.Controls.Add(this.listView2);
             this.Controls.Add(this.listView1);
-            this.Controls.Add(this.m_speed);
-            this.Controls.Add(this.label9);
             this.Controls.Add(this.label8);
             this.Controls.Add(this.label7);
             this.Controls.Add(this.label6);
             this.Controls.Add(this.label5);
-            this.Controls.Add(this.m_span);
-            this.Controls.Add(this.label4);
-            this.Controls.Add(this.m_time);
-            this.Controls.Add(this.label2);
-            this.Controls.Add(this.m_msg);
-            this.Controls.Add(this.label3);
-            this.Controls.Add(this.m_online);
-            this.Controls.Add(this.label1);
             this.Controls.Add(this.btn_closeall);
             this.Controls.Add(this.btn_expend);
             this.Controls.Add(this.treeView1);
@@ -357,23 +235,11 @@
         private System.Windows.Forms.TreeView treeView1;
         private System.Windows.Forms.Button btn_expend;
         private System.Windows.Forms.Button btn_closeall;
-        private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.Label m_online;
-        private System.Windows.Forms.Label label2;
-        private System.Windows.Forms.Label m_time;
-        private System.Windows.Forms.Label label4;
-        private System.Windows.Forms.Label m_span;
-        private System.Windows.Forms.Label label3;
-        private System.Windows.Forms.Label m_msg;
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.Label label7;
-        private System.Windows.Forms.Label m_speed;
-        private System.Windows.Forms.Label label9;
         private System.Windows.Forms.ListView listView1;
         private System.Windows.Forms.ListView listView2;
-        private System.Windows.Forms.Label m_undo;
-        private System.Windows.Forms.Label label10;
         private System.Windows.Forms.ListView listView3;
         private System.Windows.Forms.Label label8;
         private System.Windows.Forms.Button btn_reset;
@@ -381,6 +247,7 @@
         private System.Windows.Forms.Button button1;
         private System.Windows.Forms.CheckBox checkBox1;
         private System.Windows.Forms.Button button2;
+        private System.Windows.Forms.ListView listView4;
     }
 }
 
