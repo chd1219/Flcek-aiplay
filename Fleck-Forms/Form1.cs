@@ -9,10 +9,11 @@ using System.Windows.Forms;
 using Fleck.aiplay;
 using Fleck;
 using System.Threading;
-using System.Collections;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Management;  
+using System.Management;
+using System.Collections.Concurrent;
+using System.Collections;  
 
 namespace Fleck_Forms
 {
@@ -35,9 +36,6 @@ namespace Fleck_Forms
             comm.Start();
             countQueue = new Queue();
             MsgCount = 0;
-            lastMsgCount = 0;
-            nSpeed = 0;
-            nSpan = 0;
             RunTime = System.DateTime.Now;
   
             FleckLog.Level = LogLevel.Info;
@@ -113,7 +111,7 @@ namespace Fleck_Forms
                     int num = comm.OutputEngineQueue.Count;
                     for (int i = 0; i < num; i++ )
                     {
-                        string q = (string)comm.OutputEngineQueue.Dequeue();
+                        string q = comm.OutputEngineQueueDequeue();
                         string[] str = { DateTime.Now.ToLongTimeString(), q };
                         AddListViewItem(listView3, str);
                     }
@@ -183,7 +181,7 @@ namespace Fleck_Forms
             listView4.Columns.Add("在线用户", 100, HorizontalAlignment.Center);
             listView4.Columns.Add("接受请求", 100, HorizontalAlignment.Center);
             listView4.Columns.Add("处理速度", 100, HorizontalAlignment.Center);
-            listView4.Columns.Add("未处理", 100, HorizontalAlignment.Center);
+            listView4.Columns.Add("等待处理", 100, HorizontalAlignment.Center);
             listView4.Columns.Add("CPU使用", 100, HorizontalAlignment.Center);
             listView4.Columns.Add("剩余内存", 100, HorizontalAlignment.Center);
             listView4.Columns.Add("启动时间", 200, HorizontalAlignment.Center);
@@ -216,9 +214,6 @@ namespace Fleck_Forms
         Engine comm;
         DateTime RunTime;
         int MsgCount;
-        int lastMsgCount;
-        int nSpeed;
-        int nSpan;
         Queue countQueue;
 
         //安全调用控件

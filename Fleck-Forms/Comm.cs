@@ -222,18 +222,18 @@ namespace Fleck.aiplay
         }
 
         public Msg Json2Msg(string jsonStr)
-        {           
+        {  
+            Msg msg = null;       
             try
-            {
-                Msg msg;
+            {               
                 JavaScriptObject jsonObj = JavaScriptConvert.DeserializeObject<JavaScriptObject>(jsonStr);
-                msg = new Msg(jsonObj["id"].ToString(), jsonObj["fen"].ToString());
-                return msg;
+                msg = new Msg(jsonObj["id"].ToString(), jsonObj["fen"].ToString());               
             }
-            catch (System.Exception ex)
+            catch
             {
-                return null;
-            }           
+                throw;
+            }
+            return msg;
         }
 
         public void SQLite_Test()
@@ -263,8 +263,9 @@ namespace Fleck.aiplay
 
                 conn.Close();
             }
-            catch (Exception ex)
+            catch
             {
+                throw;
             }
         }  
 
