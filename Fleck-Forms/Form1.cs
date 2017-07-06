@@ -13,12 +13,17 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Management;
 using System.Collections.Concurrent;
-using System.Collections;  
+using System.Collections;
+using System.Data.SQLite;  
 
 namespace Fleck_Forms
 {
     public partial class Form1 : Form
     {
+        //1.声明自适应类实例
+        AutoSizeFormClass asc = new AutoSizeFormClass();
+        public SQLiteConnection conn;
+        string Port = "9001";
         public Form1()
         {
             addListDelegate = new AddConnectionItem(AddListItemMethod);
@@ -27,26 +32,45 @@ namespace Fleck_Forms
 
             InitializeComponent();            
         }
+
+        public Form1(string port)
+        {
+            Port = port;
+            addListDelegate = new AddConnectionItem(AddListItemMethod);
+            removeListDelegate = new RemoveConnectionListItem(RemoveListItemMethod);
+            addMsgDelegate = new AddMsgItem(AddMsgItemMethod);
+
+            InitializeComponent();
+        }
         
         private void Form1_Load(object sender, EventArgs e)
-        {       
-            InitListView();
+        {
 
-            comm = new Engine();            
+            asc.controllInitializeSize(this);
+            InitListView();
+        
+            comm = new Engine();
+            comm.Port = Port;
             comm.Start();
             countQueue = new Queue();
             MsgCount = 0;
             RunTime = System.DateTime.Now;
-  
+            m_CloudApi.Checked = Setting.isSupportCloudApi;
+            m_depth.Text = Setting.level;
             FleckLog.Level = LogLevel.Info;
-            var server = new WebSocketServer("ws://0.0.0.0:" + Setting.port);
+            OnWebSocketServer(Port);
+        }
+
+        public void OnWebSocketServer(string port)
+        {
+            var server = new WebSocketServer("ws://0.0.0.0:" + Port);
 
             server.Start(socket =>
             {
                 socket.OnOpen = () =>
                 {
                     AddConnection(socket);
-                    comm.OnOpen(socket);                    
+                    comm.OnOpen(socket);
                 };
                 socket.OnClose = () =>
                 {
@@ -54,15 +78,51 @@ namespace Fleck_Forms
                     comm.OnClose(socket);
                 };
                 socket.OnMessage = message =>
-                {                                       
+                {
                     comm.OnMessage(socket, message);
                     Role role = comm.GetRoleAt(socket);
-                    string[] names = { DateTime.Now.ToLongTimeString(), role.GetAddr(), role.GetMsgCount().ToString(),message };
-                    AddMsg(names); 
+                    string[] names = { DateTime.Now.ToLongTimeString(), role.GetAddr(), role.GetMsgCount().ToString(), message };
+                    comm.WriteInfo(role.GetAddr() + "  " + role.GetMsgCount().ToString() + "  " + message);
+                    AddMsg(names);
                 };
             });
         }
+        public void SQLite_Init()
+        {
+            string strSQLiteDB = Environment.CurrentDirectory;
+            //             strSQLiteDB = strSQLiteDB.Substring(0, strSQLiteDB.LastIndexOf("\\"));
+            //             strSQLiteDB = strSQLiteDB.Substring(0, strSQLiteDB.LastIndexOf("\\"));// 这里获取到了Bin目录  
 
+            try
+            {
+                string dbPath = "Data Source=" + strSQLiteDB + "\\history.db";
+                conn = new SQLiteConnection(dbPath);//创建数据库实例，指定文件位置    
+                conn.Open();                        //打开数据库，若文件不存在会自动创建    
+
+                string sql = "CREATE TABLE IF NOT EXISTS chess(Time varchar(20),ID integer, command varchar(20), reslut varchar(50));";//建表语句    
+                SQLiteCommand cmdCreateTable = new SQLiteCommand(sql, conn);
+                cmdCreateTable.ExecuteNonQuery();//如果表不存在，创建数据表                    
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        public int SQLite_Insert(string[] param)
+        {
+            try
+            {
+                SQLiteCommand cmdInsert = new SQLiteCommand(conn);
+                cmdInsert.CommandText = String.Format("INSERT INTO chess(Time, ID,command, reslut) VALUES('{0}', '{1}',{2},'')", param[0], param[1], param[2]);//插入几条数据    
+                return cmdInsert.ExecuteNonQuery();
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                throw;
+            }
+
+        }
         private void AddMsg(string [] role)
         {
             try
@@ -72,7 +132,7 @@ namespace Fleck_Forms
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                ShowError(ex.Message);
             }
         }
 
@@ -80,16 +140,20 @@ namespace Fleck_Forms
         {
             if (comm != null)
             {
+                string m_speed = null;
                 string m_online = comm.getUserCount().ToString();
 
                 string m_msg = MsgCount.ToString() + " 个";
 
-                countQueue.Enqueue(MsgCount);
-                if (countQueue.Count > 60)
+                if (countQueue != null)
                 {
-                    countQueue.Dequeue();
-                }
-                string m_speed = (MsgCount - (int)countQueue.Peek()).ToString() + " 个/分钟";
+                    countQueue.Enqueue(MsgCount);
+                    if (countQueue.Count > 60)
+                    {
+                        countQueue.Dequeue();
+                    }
+                    m_speed = (MsgCount - (int)countQueue.Peek()).ToString() + " 个/分钟";
+                }       
 
                 string m_undo = comm.getMsgQueueCount().ToString() + " 个";
 
@@ -106,16 +170,20 @@ namespace Fleck_Forms
                 AddListViewItem(listView4, names, 0);
 
                 //显示引擎信息
-                lock (comm.OutputEngineQueue)
+                if (comm.OutputEngineQueue != null)
                 {
-                    int num = comm.OutputEngineQueue.Count;
-                    for (int i = 0; i < num; i++ )
+                    lock (comm.OutputEngineQueue)
                     {
-                        string q = comm.OutputEngineQueueDequeue();
-                        string[] str = { DateTime.Now.ToLongTimeString(), q };
-                        AddListViewItem(listView3, str);
-                    }
-                }               
+                        int num = comm.OutputEngineQueue.Count;
+                        for (int i = 0; i < num; i++ )
+                        {
+                            string q = comm.OutputEngineQueueDequeue();
+                            string[] str = { DateTime.Now.ToLongTimeString(), q };
+                            AddListViewItem(listView3, str);
+                        }
+                    }          
+                }
+                     
             }
         }
 
@@ -337,11 +405,19 @@ namespace Fleck_Forms
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
-            }
- 
+                ShowError(ex.Message);
+            } 
             
         }
+
+        private void ShowError(string p)
+        {
+            if (comm != null)
+            {
+                comm.OutputEngineQueueEnqueue(p);
+            }
+        }
+
         
         public void AddMsg(string str)
         {           
@@ -352,7 +428,7 @@ namespace Fleck_Forms
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                ShowError(ex.Message);
             }
         }
 
@@ -364,7 +440,7 @@ namespace Fleck_Forms
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                ShowError(ex.Message);
             }
         }
 
@@ -376,7 +452,7 @@ namespace Fleck_Forms
             }
             catch (System.Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                ShowError(ex.Message);
             }
         }
 
@@ -413,10 +489,35 @@ namespace Fleck_Forms
             comm.bJson = checkBox1.Checked;
         }
 
+        private void m_Redis_CheckedChanged(object sender, EventArgs e)
+        {
+            comm.bRedis = m_Redis.Checked;
+        }
+
+        private void m_CloudApi_CheckedChanged(object sender, EventArgs e)
+        {
+            Setting.isSupportCloudApi = m_CloudApi.Checked;
+        }
+
         private void button2_Click(object sender, EventArgs e)
         {
-            //comm.SQLite_Test();
+            //SQLite_Init();
         }
-        
+
+        private void m_depth_TextChanged(object sender, EventArgs e)
+        {
+            Setting.level = m_depth.Text;
+        }
+
+        private void Form1_SizeChanged(object sender, EventArgs e)
+        {
+            asc.controlAutoSize(this);
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            comm.InputEngineQueueDequeue();
+        }
+           
     }
 }

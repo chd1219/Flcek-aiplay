@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Collections;
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
+using Fleck_Forms;
 
 namespace Fleck.aiplay
 {
@@ -22,15 +23,24 @@ namespace Fleck.aiplay
         public Queue<Role> InputEngineQueue; 
         public Role currentRole;
         public Queue OutputEngineQueue;
+        // 为保证线程安全，使用一个锁来保护_task的访问
+        readonly static object _locker = new object();
+        // 通过 _wh 给工作线程发信号
+        static EventWaitHandle _wh = new AutoResetEvent(false);
         public bool bJson { get; set; }
+        public bool bRedis { get; set; }
         public int getMsgQueueCount()
         {
+            if (InputEngineQueue == null)
+            {
+                return 0;
+            }
              return InputEngineQueue.Count;
         }
 
         public bool CheckInputEngineQueue()
         {
-            if (InputEngineQueue.Count > 0)
+            if((InputEngineQueue != null) && (InputEngineQueue.Count > 0)) 
             {
                 return true;
             }
@@ -39,6 +49,10 @@ namespace Fleck.aiplay
 
         public void OutputEngineQueueEnqueue(string line, bool save = false)
         {
+            if (OutputEngineQueue == null || line == null || line.Length == 0)
+            {
+                return;
+            }
             if (save)
             {
                 WriteInfo(line);
@@ -51,6 +65,10 @@ namespace Fleck.aiplay
 
         public string OutputEngineQueueDequeue()
         {
+            if (OutputEngineQueue == null)
+            {
+                return null;
+            }
             lock (OutputEngineQueue)
             {
                 return (string)OutputEngineQueue.Dequeue();
@@ -155,9 +173,8 @@ namespace Fleck.aiplay
                         if (line.IndexOf("bestmove") != -1)
                         {
                             OutputEngineQueueEnqueue("depth " + intDepth.ToString() + " " + line);
-                            currentRole.Done(line); 
-                            InputEngineQueueDequeue();
-                            bLock = false;
+                            currentRole.Done(line);
+                            _wh.Set();  // 给工作线程发信号
                         }
                         Thread.Sleep(10);
                     }
@@ -165,6 +182,7 @@ namespace Fleck.aiplay
             }
             catch (System.Exception ex)
             {
+                _wh.Set();  // 给工作线程发信号
                 OutputEngineQueueEnqueue("[error] PipeThread " + ex.Message, true);
                 resetEngine();                
             }
@@ -212,6 +230,7 @@ namespace Fleck.aiplay
 
         public void OnMessage(IWebSocketConnection socket, string message)
         {
+            //WriteInfo(socket.ConnectionInfo.ClientIpAddress + ":" + socket.ConnectionInfo.ClientPort.ToString() + " " + message);
             switch (message)
             {
                 case "HeartBeat":
@@ -312,70 +331,71 @@ namespace Fleck.aiplay
             if (msg != null)
             {
                 role.EnqueuePositionMessage(msg);
-                InputEngineQueue.Enqueue(role);
+                InputEngineQueueEnqueue(role);
             }          
         }
 
-        public void InputEngineQueueDequeue()
+        private void InputEngineQueueEnqueue(Role role)
         {
-            lock (InputEngineQueue)
+            try
             {
-                try
+                lock (_locker)
                 {
-                    InputEngineQueue.Dequeue();
-                }
-                catch (System.Exception ex)
-                {
-            	    OutputEngineQueueEnqueue(ex.Message);
-                }            
-            }          
-        
-        }
-        public Role InputEngineQueuePeek()
-        {
-            Role role = null;
-            lock (InputEngineQueue)
-            {
-                try
-                {
-                    role =  InputEngineQueue.Peek();
-                }
-                catch (System.Exception ex)
-                {
-                    OutputEngineQueueEnqueue(ex.Message);
+                    InputEngineQueue.Enqueue(role);
                 }
             }
+            catch (System.Exception ex)
+            {
+                OutputEngineQueueEnqueue(ex.Message);
+            }
+          
+        }
+
+        public Role InputEngineQueueDequeue()
+        {
+            Role role = null;
+            try
+            {
+                lock (_locker)
+                {
+
+                    role = InputEngineQueue.Dequeue();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                OutputEngineQueueEnqueue(ex.Message);
+            }            
 
             return role;
+        
         }
 
         public void CustomerThread()
-        {
-            Msg msg;
+        {            
             while (true)
-            {                
+            {
+                Msg msg = null;
                 try
                 {
-                    if (CheckInputEngineQueue() && bEngineRun && !bLock)
-                    { 
-                        //同步锁
-                        bLock = true;
-                        currentRole = InputEngineQueuePeek();
-                        if (currentRole == null)
-                        {
-                            InputEngineQueueDequeue();
-                            continue;
-                        }
+                    if (InputEngineQueue.Count > 0)
+                    {
+                        currentRole = InputEngineQueueDequeue();
                         msg = currentRole.GetCurrentMsg();
-                        
-                        EngineDeal(msg.message);
-                       
                     }
-                    Thread.Sleep(10);
+
+                    if (msg != null)
+                    {
+                        EngineDeal(msg.message);  // 任务不为null时，处理并保存数据     
+                        _wh.WaitOne();   //等待信号
+                    }
+
+                    Thread.Sleep(100);
                 }
                 catch (System.Exception ex)
                 {                    
                     OutputEngineQueueEnqueue("[error] GetFromEngine " + ex.Message, true);
+                    InputEngineQueueDequeue();
                     resetEngine();
                 }
             }
@@ -387,8 +407,7 @@ namespace Fleck.aiplay
             {
                 OutputEngineQueue.Enqueue("getFromList");
                 getFromList(currentRole, message);
-                InputEngineQueueDequeue();
-                bLock = false;
+                _wh.Set();  // 给工作线程发信号
             }
             else
             {
@@ -398,6 +417,47 @@ namespace Fleck.aiplay
                 Thread.Sleep(50);
             }
         }
+
+//         public int VerifyFEN(string s) 
+//         {
+// 	        s = s.Replace(/[\r\n]/, '');
+// 	        s = s.Replace(/%20/, ' ');
+// 	        s = s.Replace(/\+/, ' ');
+// 	        s = s.Replace(/ b.*/g, ' b');
+// 	        s = s.Replace(/ w.*/g, ' w');
+// 	        s = s.Replace(/ r.*/g, ' w');
+// 	        if (s.Replace(/\+/) != -1) {
+// 		        s = s.Substring(0, s.IndexOf(/\+/));
+// 	        }
+// 
+// 	        var a = new Array();
+// 	        var sum = 0;
+// 	        var w = new String(s.Substring(s.length - 2, 2));
+// 	        w = w.toLowerCase();
+// 	        if (w != ' w' && w != ' b') {
+// 		        return (0);
+// 	        }
+// 	        s = s.substr(0, s.length - 2);
+// 	        a = String(s).split(/\//);
+// 	        if (a.length != 10) {
+// 		        return (0);
+// 	        }
+// 	        for (var x = 0; x < 10; x++) {
+// 		        sum = 0;
+// 		        if (String(a[x]).search(/[^1-9kabnrcpKABNRCP]/) != -1) {
+// 			        return (0);
+// 		        }
+// 		        a[x] = String(a[x]).replace(/[kabnrcpKABNRCP]/g, '1');
+// 		        while (String(a[x]).length != 0) {
+// 			        sum = sum + Number(String(a[x]).charAt(0));
+// 			        a[x] = String(a[x]).substr(1);
+// 		        }
+// 		        if (sum != 9) {
+// 			        return (0);
+// 		        }
+// 	        }
+// 	        return (1);
+//         }
 
         public void stopEngine()
         {

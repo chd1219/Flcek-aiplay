@@ -35,7 +35,10 @@ namespace Fleck.aiplay
         }
         public void EnqueuePositionMessage(Msg msg)
         {
-            MsgQueue.Enqueue(msg);
+            lock (MsgQueue)
+            {
+                MsgQueue.Enqueue(msg);
+            }
         }
 
         public void EnqueueQueryMessage(string msg)
@@ -54,7 +57,10 @@ namespace Fleck.aiplay
             currentMsg.retval = line;
             currentMsg.isreturn = true;
             lastdealTime = currentMsg.dealTime;
-            MsgQueue.Dequeue();
+            lock (MsgQueue)
+            {
+                MsgQueue.Dequeue();
+            }
             FinishQueue.Enqueue(currentMsg);
         }
 

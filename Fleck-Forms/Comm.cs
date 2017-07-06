@@ -24,10 +24,15 @@ namespace Fleck.aiplay
         public Queue DealSpeedQueue;
         public RedisHelper redis;
         public User user;
+        public string Port { get; set; }
         private static int nMsgQueuecount { get; set; }
-
-        public void WriteInfo(string message, bool isOutConsole = true)
+        public SQLiteConnection conn;
+        public void WriteInfo(string message, bool isOutConsole = false)
         {
+            if (log == null)
+            {
+                return;
+            }
             log.WriteInfo(message);
             if (isOutConsole)
             {
@@ -80,24 +85,14 @@ namespace Fleck.aiplay
 
         public int getUserCount()
         {
-            return user.allSockets.Count;
-        }
-  
-        public void StatThread()
-        {
-            while (true)
+            int cout = 0;
+            if (user != null)
             {
-                if (DealSpeedQueue.Count >= 100)
-                {
-                    DealSpeedQueue.Dequeue();
-                }
-                DealSpeedQueue.Enqueue(nMsgQueuecount);
-                nMsgQueuecount = 0;
-                //休眠60s
-                Thread.Sleep(60000);
+                cout = user.allSockets.Count;
             }
+            return cout;
         }
-
+      
         public void Init()
         {
             cpuCounter = new PerformanceCounter();
@@ -109,14 +104,15 @@ namespace Fleck.aiplay
             ramCounter = new PerformanceCounter("Memory", "Available MBytes");
 
             setting = new Setting();
-            log = new Log();
-            logPosition = new Log("Position");
+            log = new Log(Port);
+            logPosition = new Log("Position"+Port);
             DealSpeedQueue = new Queue();                
             user = new User();
             redis = new RedisHelper();
-            //统计在线用户的提交量
-            StartStatThread(); 
-        }
+          //  SQLite_Init();
+         }
+
+        
         
         public void DealActiveMessage(IWebSocketConnection socket)
         {
@@ -213,14 +209,6 @@ namespace Fleck.aiplay
             }
         }
 
-        public void StartStatThread()
-        {
-            Thread statThread = new Thread(new ThreadStart(StatThread));
-            statThread.IsBackground = true;
-            statThread.Start();
-            nMsgQueuecount = 0;        
-        }
-
         public Msg Json2Msg(string jsonStr)
         {  
             Msg msg = null;       
@@ -236,38 +224,42 @@ namespace Fleck.aiplay
             return msg;
         }
 
-        public void SQLite_Test()
+        public void SQLite_Init()
         {
-            SQLiteConnection conn = null;
             string strSQLiteDB = Environment.CurrentDirectory;
-            strSQLiteDB = strSQLiteDB.Substring(0, strSQLiteDB.LastIndexOf("\\"));
-            strSQLiteDB = strSQLiteDB.Substring(0, strSQLiteDB.LastIndexOf("\\"));// 这里获取到了Bin目录  
+//             strSQLiteDB = strSQLiteDB.Substring(0, strSQLiteDB.LastIndexOf("\\"));
+//             strSQLiteDB = strSQLiteDB.Substring(0, strSQLiteDB.LastIndexOf("\\"));// 这里获取到了Bin目录  
 
             try
             {
-                string dbPath = "Data Source=" + strSQLiteDB + "\\test.db";
+                string dbPath = "Data Source=" + strSQLiteDB + "\\history.db";
                 conn = new SQLiteConnection(dbPath);//创建数据库实例，指定文件位置    
                 conn.Open();                        //打开数据库，若文件不存在会自动创建    
 
-                string sql = "CREATE TABLE IF NOT EXISTS phone(ID integer, brand varchar(20), Memery varchar(50));";//建表语句    
+                string sql = "CREATE TABLE IF NOT EXISTS chess(Time varchar(20),ID integer, command varchar(20), reslut varchar(50));";//建表语句    
                 SQLiteCommand cmdCreateTable = new SQLiteCommand(sql, conn);
-                cmdCreateTable.ExecuteNonQuery();//如果表不存在，创建数据表    
-
-                SQLiteCommand cmdInsert = new SQLiteCommand(conn);
-                cmdInsert.CommandText = "INSERT INTO phone(brand, Memery) VALUES('samsung', '三星')";//插入几条数据    
-                cmdInsert.ExecuteNonQuery();
-                cmdInsert.CommandText = "INSERT INTO phone(brand, Memery) VALUES('samsung', '三星')";//插入几条数据    
-                cmdInsert.ExecuteNonQuery();
-                cmdInsert.CommandText = "INSERT INTO phone(brand, Memery) VALUES('samsung', '三星')";//插入几条数据    
-                cmdInsert.ExecuteNonQuery();
-
-                conn.Close();
+                cmdCreateTable.ExecuteNonQuery();//如果表不存在，创建数据表                    
             }
             catch
             {
                 throw;
             }
         }  
+        public int SQLite_Insert(string[] param)
+        {
+            try
+            {
+                SQLiteCommand cmdInsert = new SQLiteCommand(conn);
+                cmdInsert.CommandText = String.Format("INSERT INTO chess(Time, ID,command, reslut) VALUES('{0}', '{1}',{2},'')", param[0], param[1], param[2]);//插入几条数据    
+                return cmdInsert.ExecuteNonQuery();
+            }
+            catch (System.Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                throw;
+            }          
+            
+        }
 
         PerformanceCounter cpuCounter;
         PerformanceCounter ramCounter;
